@@ -6,16 +6,52 @@
  * breakdown (matched / missing skills, covered requirement lines, experience fit…) that the UI
  * shows verbatim. No ML, no network: pdf-parse / jszip for text, regexes and dictionaries after.
  */
-import { PDFParse } from 'pdf-parse';
 import JSZip from 'jszip';
+import { createRequire } from 'node:module';
 
 /* ------------------------------------------------------------------ */
 /* Text extraction                                                     */
 /* ------------------------------------------------------------------ */
 export type CvFormat = 'pdf' | 'docx' | 'txt';
 
+/**
+ * pdf-parse (pdfjs) runs `new DOMMatrix()` at module load. Locally the optional @napi-rs/canvas package
+ * provides it, but serverless bundles (Vercel) leave that native package out, and a top-level import
+ * would then crash the whole API on boot. So load it lazily, and when no canvas is available give it a
+ * minimal DOMMatrix: text extraction never renders, it only needs the constructor to exist.
+ */
+let pdfParse: Promise<typeof import('pdf-parse')> | null = null;
+function loadPdfParse() {
+  if (!pdfParse) {
+    if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+      try {
+        const canvas = createRequire(import.meta.url)('@napi-rs/canvas');
+        (globalThis as any).DOMMatrix = canvas.DOMMatrix;
+      } catch {
+        (globalThis as any).DOMMatrix = MinimalDOMMatrix;
+      }
+    }
+    pdfParse = import('pdf-parse');
+  }
+  return pdfParse;
+}
+
+/** Identity-capable 2D matrix with the handful of members pdfjs touches outside rendering. */
+class MinimalDOMMatrix {
+  a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+  constructor(init?: number[]) {
+    if (Array.isArray(init) && init.length >= 6) [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+  }
+  multiplySelf() { return this; }
+  preMultiplySelf() { return this; }
+  translate() { return this; }
+  scale() { return this; }
+  invertSelf() { return this; }
+}
+
 export async function extractText(buffer: Buffer, format: CvFormat): Promise<string> {
   if (format === 'pdf') {
+    const { PDFParse } = await loadPdfParse();
     const parser = new PDFParse({ data: new Uint8Array(buffer) });
     try {
       const r = await parser.getText();
