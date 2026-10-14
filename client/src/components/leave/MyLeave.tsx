@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api, qs } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { useCounts } from '../../lib/notifications';
 import { todayIso } from '../../lib/format';
 import { Button, Card, EmptyState, Spinner, useFetch } from '../ui';
 import ApplyLeaveModal from './ApplyLeaveModal';
@@ -43,7 +44,8 @@ export function MyLeave({ types, holidays, weeklyOffs, sandwich }: { types: Leav
   const requests = useFetch<LeaveRequest[]>(() => (eid ? api.get(`/api/leave/requests${qs({ employee_id: eid })}`) : Promise.resolve([])), [eid]);
   const [apply, setApply] = useState(false);
   const [edit, setEdit] = useState<LeaveRequest | null>(null);
-  const reload = () => { balances.reload(); requests.reload(); };
+  const { refreshCounts } = useCounts();
+  const reload = () => { balances.reload(); requests.reload(); refreshCounts(); };
   const { cancel, dialog } = useCancelRequest(reload);
   if (!eid) {
     return (

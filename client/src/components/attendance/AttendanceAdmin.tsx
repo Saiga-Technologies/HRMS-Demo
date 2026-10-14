@@ -301,6 +301,14 @@ export function AttendanceSettingsTab() {
         <Field label="Late mark after (minutes)" hint="Used when the employee has no shift grace"><Input type="number" min={0} {...num('late_mark_after_minutes')} /></Field>
         <Field label="Half day below (minutes)"><Input type="number" min={0} {...num('half_day_below_minutes')} /></Field>
         <Field label="Overtime after (minutes)"><Input type="number" min={0} {...num('overtime_after_minutes')} /></Field>
+        <Field label="Standard work day (minutes)" hint="Used for the shortfall column in reports (540 = 9 hours)"><Input type="number" min={0} {...num('standard_work_minutes')} data-testid="settings-standard-work" /></Field>
+        <div className="form-section">Appeals</div>
+        <Field label="Appeal deadline (days)" hint="Missed-punch appeals must be raised within this many days of the date; HR can override"><Input type="number" min={0} max={90} {...num('appeal_deadline_days')} data-testid="settings-appeal-deadline" /></Field>
+        <div className="field">
+          <span className="field-label">Edit only via appeal</span>
+          <Switch label="Every change to a record goes through an approved appeal (no direct edits, full audit trail)" checked={v.edit_only_via_appeal !== false} onChange={(c) => setV({ ...v, edit_only_via_appeal: c })} />
+          <span className="field-hint">When off, HR can edit punches directly; edits are still stamped and audited with before/after values.</span>
+        </div>
         <div className="form-section">Weekly offs</div>
         <div className="row span-2">{WEEKDAYS.map((d, i) => <Checkbox key={d} label={d} checked={v.weekly_offs.includes(i)} onChange={() => toggleOff(i)} />)}</div>
       </form>

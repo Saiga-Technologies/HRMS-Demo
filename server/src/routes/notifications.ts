@@ -45,6 +45,11 @@ r.get('/counts', requireAuth, (req, res) => {
   const visible = isHr ? undefined : [eid, ...(ids || [])].filter((x): x is number => !!x);
   const docs = all<any>(`SELECT d.expiry_date, t.expiry_warning_days, t.expiry_critical_days FROM documents d LEFT JOIN document_types t ON t.id = d.document_type_id WHERE d.expiry_date IS NOT NULL${visible ? ` AND d.employee_id IN (${visible.join(',') || 'NULL'})` : ''}`);
   counts.documents_expiring = docs.filter((d) => ['warning', 'critical', 'expired'].includes(documentStatus(d).expiry_state)).length;
+  counts.letter_requests = isHr ? n(`SELECT COUNT(*) AS n FROM letters WHERE status = 'requested'`) : 0;
+  counts.my_letters_ready = n(`SELECT COUNT(*) AS n FROM letters WHERE status = 'generated'${mine('employee_id')}`);
+  counts.reviews_pending_self = n(`SELECT COUNT(*) AS n FROM reviews r JOIN review_cycles c ON c.id = r.cycle_id WHERE c.status = 'open' AND r.status = 'pending_self'${mine('r.employee_id')}`);
+  counts.reviews_pending_manager = n(`SELECT COUNT(*) AS n FROM reviews r JOIN review_cycles c ON c.id = r.cycle_id WHERE c.status = 'open' AND r.status = 'pending_manager'${isHr ? '' : mine('r.reviewer_employee_id')}`);
+  counts.announcements_unread = n(`SELECT COUNT(*) AS n FROM announcements a WHERE (a.publish_at IS NULL OR a.publish_at <= ?) AND (a.expires_at IS NULL OR a.expires_at >= ?) AND NOT EXISTS (SELECT 1 FROM announcement_reads ar WHERE ar.announcement_id = a.id AND ar.user_id = ?)`, [new Date().toISOString(), today(), user.id]);
   // Roll-ups used by the sidebar
   counts.nav_attendance = counts.attendance_appeals + counts.comp_off_approvals + counts.my_comp_off_detected;
   counts.nav_leave = counts.leave_approvals + counts.my_leave_pending;
@@ -52,7 +57,10 @@ r.get('/counts', requireAuth, (req, res) => {
   counts.nav_payroll = counts.payslip_requests + counts.payroll_draft_runs;
   counts.nav_recruitment = counts.candidates_new + counts.candidates_interview;
   counts.nav_journey = counts.journeys_in_progress;
-  counts.total_actions = counts.leave_approvals + counts.attendance_appeals + counts.comp_off_approvals + counts.payslip_requests + counts.documents_pending_review + counts.my_comp_off_detected;
+  counts.nav_letters = counts.letter_requests + counts.my_letters_ready;
+  counts.nav_performance = counts.reviews_pending_self + counts.reviews_pending_manager;
+  counts.nav_announcements = counts.announcements_unread;
+  counts.total_actions = counts.leave_approvals + counts.attendance_appeals + counts.comp_off_approvals + counts.payslip_requests + counts.documents_pending_review + counts.my_comp_off_detected + counts.letter_requests + counts.reviews_pending_self + counts.reviews_pending_manager;
   res.json({ counts, computed_at: new Date().toISOString(), today: today(), settings: { appeal_deadline_days: getSetting('attendance', { appeal_deadline_days: 3 }).appeal_deadline_days } });
 });
 

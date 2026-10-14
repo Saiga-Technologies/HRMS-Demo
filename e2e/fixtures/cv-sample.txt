@@ -1,0 +1,27 @@
+Riya Banerjee
+Senior Backend Developer
+riya.banerjee@example.com | +91 98201 44567 | Bengaluru, India
+
+Summary
+Backend developer with 6 years of experience building production services for fintech and SaaS products. Comfortable owning a service end to end: design, implementation, testing, deployment and on-call. Enjoys mentoring juniors and writing clear technical documentation.
+
+Skills
+TypeScript, Node.js, Express, SQL (PostgreSQL, MySQL), AWS (EC2, S3, Lambda), Docker, Kubernetes, REST APIs, GraphQL, Redis, Git, Jest, CI/CD, Agile
+
+Experience
+Senior Backend Developer, Finlytics Technologies, Bengaluru (2021 - Present)
+- Designed and built TypeScript / Node.js microservices handling 40M requests a day on AWS.
+- Owned the PostgreSQL data model for the ledger service; cut p95 query latency by 60% through indexing and query rewrites.
+- Introduced code review guidelines and a unit testing standard (Jest) adopted across four teams.
+- Took part in the on-call rotation and led three post-incident reviews.
+
+Backend Developer, Orbit Commerce, Pune (2018 - 2021)
+- Shipped REST and GraphQL APIs in Node.js backed by MySQL and Redis.
+- Containerised services with Docker and moved deployments to a GitLab CI pipeline.
+- Mentored two interns and ran weekly knowledge-sharing sessions.
+
+Education
+B.Tech in Computer Science, Visvesvaraya Technological University (2014 - 2018)
+
+Certifications
+AWS Certified Developer - Associate (2022)

@@ -4,6 +4,8 @@ import { api, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour } from '../lib/tour';
 import { fmtDate, fmtDateTime, fmtMoney, label, monthIso } from '../lib/format';
+import { useCounts } from '../lib/notifications';
+import { Icon } from '../components/Icons';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, Stat, StatusBadge, Switch, Table, Tabs, Textarea, useConfirm, useFetch, useForm, useToast } from '../components/ui';
 import Payslip, { fmtPeriod, type PayLine, type PayslipData } from '../components/Payslip';
 
@@ -28,6 +30,7 @@ interface Summary { activeEmployees: number; withStructure: number; withoutStruc
 interface Component { id: number; name: string; code: string; type: 'earning' | 'deduction'; calc_type: 'fixed' | 'percent_of_basic' | 'percent_of_gross'; default_value: number; taxable: number; statutory: number; prorate: number; sort_order: number; active: number }
 interface Adjustment { id: number; employee_id: number; employee_name: string; employee_code: string; period: string; type: string; amount: number; note?: string | null; created_at: string }
 interface DirEmployee { id: number; employee_code: string; first_name: string; last_name: string; department_name?: string }
+interface PayslipRequest { id: number; employee_id: number; employee_name: string; employee_code: string; period: string; reason?: string | null; status: 'pending' | 'fulfilled' | 'rejected'; payslip_id?: number | null; handled_by?: number | null; handled_by_name?: string | null; handled_at?: string | null; note?: string | null; run_status?: string | null; run_id?: number | null; created_at: string }
 
 const ADJ_TYPES = ['bonus', 'reimbursement', 'overtime', 'deduction', 'advance', 'loan_recovery', 'arrears'] as const;
 const ADJ_EARNING = new Set(['bonus', 'reimbursement', 'overtime', 'arrears']);
@@ -41,11 +44,14 @@ const HR_TOUR = [
   { element: '[data-tour="payroll-runs"]', title: 'Run workflow', description: 'Draft → Processed → Approved → Paid. Payslips are released to employees once a run is approved.' },
   { element: '[data-tour="payroll-components"]', title: 'Salary components', description: 'Earnings and deductions applied to every structure. PF, ESI, PT and TDS are computed from the Settings tab.' },
   { element: '[data-tour="payroll-adjustments"]', title: 'Adjustments', description: 'Bonuses, reimbursements, overtime, advances and recoveries for a specific month are picked up when that month is processed.' },
+  { element: '[data-tour="payroll-requests"]', title: 'Payslip requests', description: 'Employees can apply for a payslip. Fulfil a request to attach the released payslip, or reject it with a note.' },
   { element: '[data-tour="payroll-settings"]', title: 'Statutory settings', description: 'Currency, pay day, PF/ESI/PT rates and the TDS slab table used by every run.' },
 ];
 const MY_TOUR = [
   { element: '[data-tour="payroll-my"]', title: 'Your payslips', description: 'Released payslips for each month, with gross, deductions and net pay.' },
-  { element: '[data-tour="payroll-my-table"]', title: 'View and print', description: 'Open a payslip to see the full earnings and deductions breakdown, then print it or save as PDF.' },
+  { element: '[data-tour="payroll-my-tabs"]', title: 'Payslips and requests', description: 'Switch between your released payslips and your payslip requests.' },
+  { element: '[data-tour="payroll-my-table"]', title: 'View and download', description: 'Open a payslip to see the full earnings and deductions breakdown, then download it as a PDF.' },
+  { element: '[data-tour="payroll-request-new"]', title: 'Request a payslip', description: 'Need a payslip for a past month? Pick the month, add a reason and HR will attach it once the run is approved.' },
   { element: '[data-tour="payroll-my-help"]', title: 'Need a correction?', description: 'Payslips are locked once approved. Contact HR for any correction before the next run.' },
 ];
 
@@ -63,47 +69,215 @@ export default function Payroll() {
 /* ------------------------------------------------------------------ */
 /* Employee / manager view                                             */
 /* ------------------------------------------------------------------ */
+type MyTab = 'payslips' | 'requests';
 function MyPayslips() {
   const { company } = useAuth();
+  const { counts } = useCounts();
+  const [sp, setSp] = useSearchParams();
+  const tabParam = sp.get('tab');
+  const tab: MyTab = tabParam === 'requests' ? 'requests' : 'payslips';
   const slips = useFetch<PayslipData[]>(() => api.get('/api/payroll/payslips'), []);
   const [view, setView] = useState<number | null>(null);
   const cur = company.currency || 'INR';
   return (
     <>
-      <PageHeader title="My payslips" subtitle="Released payslips for you. Open one to view the breakdown or print it." tour="payroll-my" />
-      <Card padded={false} tour="payroll-my-table">
-        <Table<PayslipData>
-          loading={slips.loading}
-          rows={slips.data || []}
-          empty={<EmptyState title="No payslips yet" description="Payslips appear here once HR approves a pay run." />}
-          onRowClick={(p) => setView(p.id)}
+      <PageHeader title="My payslips" subtitle="Released payslips for you. Open one to view the breakdown or download it, or request a payslip for a past month." tour="payroll-my" />
+      <Tabs tour="payroll-my-tabs" value={tab} onChange={(k) => setSp(k === 'payslips' ? {} : { tab: k }, { replace: true })} tabs={[
+        { key: 'payslips', label: 'My payslips', icon: 'banknote', count: slips.data?.length },
+        { key: 'requests', label: 'Payslip requests', icon: 'file', count: counts.my_payslip_requests || undefined },
+      ]} />
+      {tab === 'payslips' ? (
+        <>
+          <Card padded={false} tour="payroll-my-table">
+            <Table<PayslipData>
+              loading={slips.loading}
+              rows={slips.data || []}
+              empty={<EmptyState title="No payslips yet" description="Payslips appear here once HR approves a pay run. You can also request one from the Payslip requests tab." />}
+              onRowClick={(p) => setView(p.id)}
+              columns={[
+                { key: 'period', header: 'Period', render: (p) => <span><strong>{periodLabel(p.period || '')}</strong> <span className="muted mono">{p.period}</span></span> },
+                { key: 'paid_days', header: 'Paid / LOP days', render: (p) => <span className="num">{p.paid_days} / {p.lop_days}</span> },
+                { key: 'gross', header: 'Gross', align: 'right', render: (p) => <span className="num">{fmtMoney(p.gross, p.currency || cur)}</span> },
+                { key: 'total_deductions', header: 'Deductions', align: 'right', render: (p) => <span className="num">{fmtMoney(p.total_deductions, p.currency || cur)}</span> },
+                { key: 'net', header: 'Net pay', align: 'right', render: (p) => <strong className="num">{fmtMoney(p.net, p.currency || cur)}</strong> },
+                { key: 'status', header: 'Status', render: (p) => <StatusBadge status={p.status} label={label(p.status)} /> },
+                { key: 'actions', header: '', align: 'right', render: (p) => <Button size="sm" onClick={(e) => { e.stopPropagation(); setView(p.id); }} data-testid="payslip-view">View</Button> },
+              ]}
+            />
+          </Card>
+          <p className="help" data-tour="payroll-my-help">Payslips are locked once a run is approved. Contact HR if something looks wrong.</p>
+        </>
+      ) : null}
+      {tab === 'requests' ? <MyPayslipRequests currency={cur} onOpenPayslip={(id) => setView(id)} /> : null}
+      {view ? <PayslipModal id={view} currency={cur} onClose={() => setView(null)} /> : null}
+    </>
+  );
+}
+
+/* ---------- Payslip requests (employee) ---------- */
+function MyPayslipRequests({ currency, onOpenPayslip }: { currency: string; onOpenPayslip: (id: number) => void }) {
+  const toast = useToast();
+  const { refreshCounts } = useCounts();
+  const list = useFetch<PayslipRequest[]>(() => api.get('/api/payroll/payslip-requests'), []);
+  const [open, setOpen] = useState(false);
+  const rows = list.data || [];
+  const pending = rows.filter((r) => r.status === 'pending').length;
+  return (
+    <>
+      <Card
+        padded={false}
+        tour="payroll-requests"
+        title={<span className="row">Payslip requests {pending ? <Badge tone="warning">{pending} pending</Badge> : null}</span>}
+        actions={<Button variant="primary" size="sm" onClick={() => setOpen(true)} data-testid="payslip-request-new" data-tour="payroll-request-new"><Icon name="plus" size={14} /> Request a payslip</Button>}
+      >
+        <Table<PayslipRequest>
+          loading={list.loading}
+          rows={rows}
+          empty={<EmptyState title="No requests yet" description="Request a payslip for any past month. HR attaches it as soon as that month's payroll is approved." action={<Button variant="primary" onClick={() => setOpen(true)}>Request a payslip</Button>} />}
           columns={[
-            { key: 'period', header: 'Period', render: (p) => <span><strong>{periodLabel(p.period || '')}</strong> <span className="muted mono">{p.period}</span></span> },
-            { key: 'paid_days', header: 'Paid / LOP days', render: (p) => <span className="num">{p.paid_days} / {p.lop_days}</span> },
-            { key: 'gross', header: 'Gross', align: 'right', render: (p) => <span className="num">{fmtMoney(p.gross, p.currency || cur)}</span> },
-            { key: 'total_deductions', header: 'Deductions', align: 'right', render: (p) => <span className="num">{fmtMoney(p.total_deductions, p.currency || cur)}</span> },
-            { key: 'net', header: 'Net pay', align: 'right', render: (p) => <strong className="num">{fmtMoney(p.net, p.currency || cur)}</strong> },
-            { key: 'status', header: 'Status', render: (p) => <StatusBadge status={p.status} label={label(p.status)} /> },
-            { key: 'actions', header: '', align: 'right', render: (p) => <Button size="sm" onClick={(e) => { e.stopPropagation(); setView(p.id); }} data-testid="payslip-view">View</Button> },
+            { key: 'period', header: 'Period', render: (r) => <span><strong>{periodLabel(r.period)}</strong> <span className="muted mono">{r.period}</span></span> },
+            { key: 'reason', header: 'Reason', render: (r) => r.reason || <span className="muted">—</span> },
+            { key: 'created_at', header: 'Requested', render: (r) => fmtDateTime(r.created_at) },
+            { key: 'status', header: 'Status', render: (r) => <RequestStatus r={r} /> },
+            { key: 'actions', header: '', align: 'right', render: (r) => (r.status === 'fulfilled' && r.payslip_id ? <Button size="sm" variant="primary" onClick={() => onOpenPayslip(r.payslip_id!)} data-testid="payslip-request-open">Open payslip</Button> : null) },
           ]}
         />
       </Card>
-      <p className="help" data-tour="payroll-my-help">Payslips are locked once a run is approved. Contact HR if something looks wrong.</p>
-      {view ? <PayslipModal id={view} currency={cur} onClose={() => setView(null)} /> : null}
+      <p className="help">One pending request per month. Payslips are released only after HR approves the pay run for that month. Currency: {currency}.</p>
+      {open ? <PayslipRequestModal onClose={() => setOpen(false)} onCreated={() => { setOpen(false); list.reload(); refreshCounts(); toast.success('Payslip requested'); }} /> : null}
     </>
+  );
+}
+function RequestStatus({ r }: { r: PayslipRequest }) {
+  return (
+    <span className="stack" style={{ gap: 2 }}>
+      <StatusBadge status={r.status} label={label(r.status)} />
+      {r.status === 'pending' ? <span className="pending-with">Pending with HR{r.run_status ? ` · run ${r.run_status}` : ' · no run yet'}</span> : null}
+      {r.status !== 'pending' && r.handled_by_name ? <span className="audit-trail">{r.status === 'fulfilled' ? 'Fulfilled' : 'Rejected'} by {r.handled_by_name}{r.handled_at ? ` · ${fmtDateTime(r.handled_at)}` : ''}{r.note ? ` · “${r.note}”` : ''}</span> : null}
+    </span>
+  );
+}
+function PayslipRequestModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const toast = useToast();
+  const prev = new Date();
+  prev.setMonth(prev.getMonth() - 1);
+  const f = useForm({ period: monthIso(prev), reason: '' });
+  const [busy, setBusy] = useState(false);
+  const submit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!f.values.period) return toast.error('Pick a month');
+    setBusy(true);
+    try {
+      await api.post('/api/payroll/payslip-requests', { period: f.values.period, reason: f.values.reason || undefined });
+      onCreated();
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal open title="Request a payslip" onClose={onClose} testId="payslip-request-modal"
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={() => submit()} data-testid="payslip-request-submit">Send request</Button></>}>
+      <form onSubmit={submit} className="stack">
+        <Field label="Month" required hint="Current or any past month."><Input type="month" {...f.bind('period')} max={monthIso()} required autoFocus data-testid="payslip-request-period" /></Field>
+        <Field label="Reason" hint="Optional — e.g. loan application, visa, tax filing."><Textarea {...f.bind('reason')} rows={3} data-testid="payslip-request-reason" /></Field>
+      </form>
+    </Modal>
+  );
+}
+
+/* ---------- Payslip requests (HR) ---------- */
+function HrPayslipRequests({ currency, onOpenPayslip }: { currency: string; onOpenPayslip: (id: number) => void }) {
+  const toast = useToast();
+  const { refreshCounts } = useCounts();
+  const [status, setStatus] = useState<'' | 'pending' | 'fulfilled' | 'rejected'>('pending');
+  const list = useFetch<PayslipRequest[]>(() => api.get(`/api/payroll/payslip-requests${qs({ status })}`), [status]);
+  const [rejecting, setRejecting] = useState<PayslipRequest | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const fulfil = async (r: PayslipRequest) => {
+    setBusyId(r.id);
+    try {
+      await api.post(`/api/payroll/payslip-requests/${r.id}/fulfil`, {});
+      toast.success(`Payslip for ${periodLabel(r.period)} sent to ${r.employee_name}`);
+      list.reload();
+      refreshCounts();
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  return (
+    <>
+      <Card
+        padded={false}
+        tour="payroll-requests"
+        title="Payslip requests"
+        actions={<div className="row">{(['pending', 'fulfilled', 'rejected', ''] as const).map((k) => <button key={k || 'all'} type="button" className={`pill ${status === k ? 'active' : ''}`} onClick={() => setStatus(k)}>{k ? k[0].toUpperCase() + k.slice(1) : 'All'}</button>)}</div>}
+      >
+        <Table<PayslipRequest>
+          loading={list.loading}
+          rows={list.data || []}
+          empty={<EmptyState title={status === 'pending' ? 'No pending requests' : 'No requests'} description="Employees can request payslips from Payroll → Payslip requests." />}
+          columns={[
+            { key: 'employee_name', header: 'Employee', render: (r) => <span><Link to={`/employees/${r.employee_id}`}><strong>{r.employee_name}</strong></Link> <span className="muted mono">{r.employee_code}</span></span> },
+            { key: 'period', header: 'Period', render: (r) => <span><strong>{periodLabel(r.period)}</strong> <span className="muted mono">{r.period}</span></span> },
+            { key: 'reason', header: 'Reason', render: (r) => r.reason || <span className="muted">—</span> },
+            { key: 'run_status', header: 'Pay run', render: (r) => (r.run_status ? <span className="row"><StatusBadge status={r.run_status} label={label(r.run_status)} />{r.run_id ? <Link to={`/payroll?tab=runs&run=${r.run_id}`}>open</Link> : null}</span> : <span className="muted">No run for this month</span>) },
+            { key: 'created_at', header: 'Requested', render: (r) => fmtDateTime(r.created_at) },
+            { key: 'status', header: 'Status', render: (r) => <RequestStatus r={r} /> },
+            { key: 'actions', header: '', align: 'right', render: (r) => (
+              <span className="row" style={{ justifyContent: 'flex-end' }}>
+                {r.status === 'pending' ? <Button size="sm" variant="primary" loading={busyId === r.id} onClick={() => fulfil(r)} data-testid="payslip-request-fulfil" title={['approved', 'paid'].includes(r.run_status || '') ? 'Attach the released payslip' : 'The pay run must be approved first'}>Fulfil</Button> : null}
+                {r.status === 'pending' ? <Button size="sm" variant="danger" onClick={() => setRejecting(r)} data-testid="payslip-request-reject">Reject</Button> : null}
+                {r.status === 'fulfilled' && r.payslip_id ? <Button size="sm" onClick={() => onOpenPayslip(r.payslip_id!)}>View payslip</Button> : null}
+              </span>
+            ) },
+          ]}
+        />
+      </Card>
+      <p className="help">Fulfilling attaches the employee's payslip from the approved or paid run for that month. If the run is still a draft or processed, approve it first. Amounts in {currency}.</p>
+      {rejecting ? <RejectRequestModal r={rejecting} onClose={() => setRejecting(null)} onDone={() => { setRejecting(null); list.reload(); refreshCounts(); }} /> : null}
+    </>
+  );
+}
+function RejectRequestModal({ r, onClose, onDone }: { r: PayslipRequest; onClose: () => void; onDone: () => void }) {
+  const toast = useToast();
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/api/payroll/payslip-requests/${r.id}/reject`, { note });
+      toast.success('Request rejected');
+      onDone();
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal open title={`Reject request · ${r.employee_name} · ${periodLabel(r.period)}`} onClose={onClose} testId="payslip-reject-modal"
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="danger" loading={busy} onClick={submit} data-testid="payslip-request-reject-submit">Reject</Button></>}>
+      <Field label="Note to the employee" hint="Explain why, e.g. no payroll was processed for that month."><Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} autoFocus /></Field>
+    </Modal>
   );
 }
 
 /* ------------------------------------------------------------------ */
 /* HR view                                                             */
 /* ------------------------------------------------------------------ */
-type HrTab = 'overview' | 'runs' | 'components' | 'adjustments' | 'settings';
-const HR_TABS: { key: HrTab; label: string }[] = [
-  { key: 'overview', label: 'Overview' }, { key: 'runs', label: 'Pay runs' }, { key: 'components', label: 'Salary components' }, { key: 'adjustments', label: 'Adjustments' }, { key: 'settings', label: 'Settings' },
+type HrTab = 'overview' | 'runs' | 'requests' | 'components' | 'adjustments' | 'settings';
+const HR_TABS: { key: HrTab; label: string; icon?: string }[] = [
+  { key: 'overview', label: 'Overview' }, { key: 'runs', label: 'Pay runs' }, { key: 'requests', label: 'Payslip requests' }, { key: 'components', label: 'Salary components' }, { key: 'adjustments', label: 'Adjustments' }, { key: 'settings', label: 'Settings' },
 ];
 
 function HrPayroll() {
+  const { counts } = useCounts();
   const [sp, setSp] = useSearchParams();
+  const [viewSlip, setViewSlip] = useState<number | null>(null);
   const tabParam = sp.get('tab') as HrTab | null;
   const tab: HrTab = tabParam && HR_TABS.some((t) => t.key === tabParam) ? tabParam : 'overview';
   const runId = Number(sp.get('run')) || null;
@@ -125,13 +299,15 @@ function HrPayroll() {
         subtitle="Monthly pay runs, salary components, adjustments and statutory settings."
         actions={<Button variant="primary" onClick={() => setNewRun(true)} data-testid="payroll-new-run" data-tour="payroll-new-run">+ New run</Button>}
       />
-      <Tabs tour="payroll-tabs" value={tab} onChange={(k) => go(k as HrTab)} tabs={HR_TABS} />
+      <Tabs tour="payroll-tabs" value={tab} onChange={(k) => go(k as HrTab)} tabs={HR_TABS.map((t) => (t.key === 'requests' ? { ...t, badge: counts.payslip_requests } : t.key === 'runs' ? { ...t, badge: counts.payroll_draft_runs } : t))} />
       {tab === 'overview' ? <OverviewTab currency={currency} onOpenRun={openRun} /> : null}
       {tab === 'runs' ? (runId ? <RunDetail id={runId} currency={currency} onBack={() => go('runs')} /> : <RunsTab currency={currency} onOpenRun={openRun} onNew={() => setNewRun(true)} />) : null}
+      {tab === 'requests' ? <HrPayslipRequests currency={currency} onOpenPayslip={(id) => setViewSlip(id)} /> : null}
       {tab === 'components' ? <ComponentsTab settings={settings.data} /> : null}
       {tab === 'adjustments' ? <AdjustmentsTab currency={currency} /> : null}
       {tab === 'settings' ? <SettingsTab settings={settings.data} loading={settings.loading} onSaved={(s) => settings.setData(s)} /> : null}
       {newRun ? <NewRunModal onClose={() => setNewRun(false)} onCreated={(r) => { setNewRun(false); openRun(r.id); }} /> : null}
+      {viewSlip ? <PayslipModal id={viewSlip} currency={currency} onClose={() => setViewSlip(null)} /> : null}
     </>
   );
 }
@@ -340,7 +516,7 @@ function PayslipModal({ id, currency, onClose }: { id: number; currency: string;
   const slip = useFetch<PayslipData>(() => api.get(`/api/payroll/payslips/${id}`), [id]);
   return (
     <Modal open wide title={slip.data ? `Payslip · ${slip.data.employee_name} · ${periodLabel(slip.data.period || '')}` : 'Payslip'} onClose={onClose} testId="payslip-modal"
-      footer={<><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => window.print()}>Print</Button></>}>
+      footer={<><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => window.print()} data-testid="payslip-download" title="Opens the print dialog — choose “Save as PDF”"><Icon name="download" size={15} /> Download PDF</Button></>}>
       {slip.loading ? <Spinner /> : slip.error ? <div className="alert alert-error">{slip.error}</div> : slip.data ? <Payslip payslip={slip.data} company={company} currency={slip.data.currency || currency} /> : null}
     </Modal>
   );

@@ -22,9 +22,10 @@ const SENSITIVE = ['bank_account_number', 'bank_ifsc', 'tax_id', 'pf_number', 'b
 
 export const empQuery = `
   SELECT e.*, d.name AS department_name, d.color AS department_color, p.title AS position_title,
-         m.first_name || ' ' || m.last_name AS manager_name, wl.name AS work_location_name, s.name AS shift_name,
+         m.first_name || ' ' || m.last_name AS manager_name, wl.name AS work_location_name, s.name AS shift_name, v.title AS vacancy_title,
          (SELECT COUNT(*) FROM employees x WHERE x.manager_id = e.id AND x.status != 'exited') AS direct_reports
   FROM employees e
+  LEFT JOIN vacancies v ON v.id = e.vacancy_id
   LEFT JOIN departments d ON d.id = e.department_id
   LEFT JOIN positions p ON p.id = e.position_id
   LEFT JOIN employees m ON m.id = e.manager_id
@@ -105,38 +106,61 @@ r.get('/:id', requireAuth, (req, res) => {
   res.json({ ...sanitize(row, req), documents: docs, user: user ?? null });
 });
 
-r.post('/', requireHr, wrap(async (req, res) => {
-  requireFields(req.body, ['first_name', 'email']);
-  const data: any = pick(req.body, EMP_COLS);
+/** Readable one-off password for auto-created logins, e.g. "Welcome-7f3a!". */
+export function generateTempPassword(): string {
+  return `Welcome-${crypto.randomBytes(2).toString('hex')}!`;
+}
+
+export interface CreateEmployeeOptions { create_login?: boolean; login_role?: string; login_password?: string }
+export interface CreateEmployeeResult { id: number; employee_code: string; temporary_password?: string }
+
+/**
+ * Insert an employee plus (optionally) their login, the journey stages from the active templates and
+ * this year's leave balances. Runs inside the caller's transaction (no BEGIN/COMMIT here) so other
+ * flows — e.g. hiring a candidate — can add their own writes atomically. Use `createEmployee` for the
+ * self-contained version.
+ */
+export function createEmployeeRecord(body: any, opts: CreateEmployeeOptions = {}): CreateEmployeeResult {
+  requireFields(body, ['first_name', 'email']);
+  const data: any = pick(body, [...EMP_COLS, 'candidate_id']);
   for (const d of ['dob', 'join_date', 'confirmation_date', 'exit_date']) assertDate(data[d], d);
   data.custom_fields = validateCustomFields(data.custom_fields ?? {}) ?? {};
   if (!data.employee_code) data.employee_code = nextEmployeeCode();
   data.email = String(data.email).trim();
   if (!data.join_date) data.join_date = today();
-  const id = transaction(() => {
-    const eid = insert('employees', { ...data, created_at: nowIso(), updated_at: nowIso() });
-    // Optional login creation.
-    if (req.body.create_login) {
-      const pw = String(req.body.login_password || crypto.randomBytes(6).toString('base64url'));
-      insert('users', { email: data.email, password_hash: hashPassword(pw), role: req.body.login_role === 'manager' ? 'manager' : 'employee', employee_id: eid, active: 1, must_change_password: 1, created_at: nowIso() });
-      (req as any)._tempPassword = pw;
-    }
-    // Seed journey stages from the active templates so the timeline exists from day one.
-    const templates = all<any>('SELECT * FROM journey_stage_templates WHERE active = 1 ORDER BY sort_order');
-    templates.forEach((t, i) => insert('journey_stages', {
-      employee_id: eid, template_id: t.id, name: t.name, description: t.description, sort_order: i, color: t.color, icon: t.icon,
-      status: 'pending', owner: t.owner_role, checklist: '[]', created_at: nowIso(), updated_at: nowIso(),
-    }));
-    // Leave balances for the current year.
-    const year = new Date().getFullYear();
-    for (const lt of all<any>('SELECT * FROM leave_types WHERE active = 1')) {
-      insert('leave_balances', { employee_id: eid, leave_type_id: lt.id, year, allocated: lt.annual_quota, carried: 0, adjusted: 0, used: 0 });
-    }
-    return eid;
-  });
-  audit(req, 'create', 'employee', id, { employee_code: data.employee_code });
-  const out: any = sanitize(get(`${empQuery} WHERE e.id = ?`, [id]), req);
-  if ((req as any)._tempPassword) out.temporary_password = (req as any)._tempPassword;
+  if (data.last_name === undefined || data.last_name === null) data.last_name = '';
+  const eid = insert('employees', { ...data, created_at: nowIso(), updated_at: nowIso() });
+  let temporary_password: string | undefined;
+  // Optional login creation ("user ID"): the employee's email is the user ID; the password is generated when not supplied.
+  if (opts.create_login) {
+    temporary_password = String(opts.login_password || generateTempPassword());
+    insert('users', { email: data.email, password_hash: hashPassword(temporary_password), role: opts.login_role === 'manager' ? 'manager' : 'employee', employee_id: eid, active: 1, must_change_password: 1, created_at: nowIso() });
+  }
+  // Seed journey stages from the active templates so the timeline exists from day one.
+  const templates = all<any>('SELECT * FROM journey_stage_templates WHERE active = 1 ORDER BY sort_order');
+  templates.forEach((t, i) => insert('journey_stages', {
+    employee_id: eid, template_id: t.id, name: t.name, description: t.description, sort_order: i, color: t.color, icon: t.icon,
+    status: 'pending', owner: t.owner_role, checklist: '[]', created_at: nowIso(), updated_at: nowIso(),
+  }));
+  // Leave balances for the current year.
+  const year = new Date().getFullYear();
+  for (const lt of all<any>('SELECT * FROM leave_types WHERE active = 1')) {
+    insert('leave_balances', { employee_id: eid, leave_type_id: lt.id, year, allocated: lt.annual_quota, carried: 0, adjusted: 0, used: 0 });
+  }
+  return { id: eid, employee_code: data.employee_code, temporary_password };
+}
+
+/** Transactional create used by POST /api/employees (and reusable by other routers). */
+export function createEmployee(req: any, body: any, opts: CreateEmployeeOptions = {}): CreateEmployeeResult {
+  const result = transaction(() => createEmployeeRecord(body, opts));
+  audit(req, 'create', 'employee', result.id, { employee_code: result.employee_code });
+  return result;
+}
+
+r.post('/', requireHr, wrap(async (req, res) => {
+  const created = createEmployee(req, req.body, { create_login: !!req.body.create_login, login_role: req.body.login_role, login_password: req.body.login_password });
+  const out: any = sanitize(get(`${empQuery} WHERE e.id = ?`, [created.id]), req);
+  if (created.temporary_password) out.temporary_password = created.temporary_password;
   res.status(201).json(out);
 }));
 

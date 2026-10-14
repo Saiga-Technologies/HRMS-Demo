@@ -152,7 +152,7 @@ export default function EmployeeDetail() {
       {tab === 'attendance' ? <AttendanceTab employeeId={emp.id} /> : null}
       {tab === 'leave' ? <LeaveTab employeeId={emp.id} /> : null}
       {tab === 'assets' ? <AssetsTab employeeId={emp.id} /> : null}
-      {tab === 'journey' ? <JourneyTab employeeId={emp.id} /> : null}
+      {tab === 'journey' ? <JourneyTab employeeId={emp.id} candidateId={emp.candidate_id ?? null} /> : null}
 
       {editing ? (
         <EmployeeFormModal
@@ -172,12 +172,9 @@ export default function EmployeeDetail() {
 function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
   const hasBank = ['bank_name', 'bank_account_name', 'bank_account_number', 'bank_ifsc', 'tax_id', 'pf_number'].some((k) => (emp as any)[k] !== undefined);
   const groups = groupDefs(defs);
-  // Custom fields whose section matches a standard card are merged into it; the rest get their own card.
-  const STANDARD = ['personal', 'contact', 'job'];
-  const extra = (section: string) => groups.filter((g) => g.section.toLowerCase() === section).flatMap((g) => g.defs).map((d) => ({ k: d.label, v: customFieldDisplay(d, emp.custom_fields?.[d.key]) }));
-  const otherGroups = groups.filter((g) => !STANDARD.includes(g.section.toLowerCase()));
+  const link = (text: string | null | undefined, href: string) => (text ? <a href={href}>{text}</a> : '—');
   return (
-    <div className="grid grid-2" data-tour="employee-profile">
+    <div className="detail-grid" data-tour="employee-profile">
       <Card title="Personal">
         <KeyValue items={[
           { k: 'Full name', v: fullName(emp) },
@@ -185,61 +182,66 @@ function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
           { k: 'Gender', v: emp.gender ? emp.gender.replace(/_/g, ' ') : '—' },
           { k: 'Marital status', v: emp.marital_status || '—' },
           { k: 'Nationality', v: emp.nationality || '—' },
-          ...extra('personal'),
         ]} />
       </Card>
       <Card title="Contact">
         <KeyValue items={[
-          { k: 'Email', v: <a href={`mailto:${emp.email}`}>{emp.email}</a> },
-          { k: 'Phone', v: emp.phone ? <a href={`tel:${emp.phone}`}>{emp.phone}</a> : '—' },
+          { k: 'Email', v: link(emp.email, `mailto:${emp.email}`) },
+          { k: 'Phone', v: link(emp.phone, `tel:${emp.phone}`) },
           { k: 'Address', v: emp.address || '—' },
           { k: 'City', v: emp.city || '—' },
           { k: 'Country', v: emp.country || '—' },
-          ...extra('contact'),
         ]} />
       </Card>
-      <Card title="Job">
+      <Card title="Job & reporting">
         <KeyValue items={[
-          { k: 'Employee code', v: <span className="mono">{emp.employee_code}</span> },
-          { k: 'Department', v: emp.department_name || '—' },
+          { k: 'Department', v: emp.department_name ? <span><span className="color-swatch" style={{ background: emp.department_color || '#94a3b8' }} />{emp.department_name}</span> : '—' },
           { k: 'Position', v: emp.position_title || '—' },
           { k: 'Manager', v: emp.manager_id ? <Link to={`/employees/${emp.manager_id}`}>{emp.manager_name}</Link> : '—' },
           { k: 'Employment type', v: label(emp.employment_type) },
           { k: 'Status', v: <StatusBadge status={emp.status} label={label(emp.status)} /> },
-          { k: 'Work location', v: emp.work_location_name || '—' },
-          { k: 'Shift', v: emp.shift_name || '—' },
+          ...(emp.candidate_id ? [{ k: 'Recruitment', v: <Link to={`/recruitment?candidate=${emp.candidate_id}`} data-testid="employee-recruitment-link">Hired via recruitment{emp.vacancy_title ? ` · ${emp.vacancy_title}` : ''}</Link> }] : emp.vacancy_title ? [{ k: 'Vacancy', v: emp.vacancy_title }] : []),
+        ]} />
+      </Card>
+      <Card title="Dates & location">
+        <KeyValue items={[
+          { k: 'Employee code', v: <span className="mono">{emp.employee_code}</span> },
           { k: 'Join date', v: fmtDate(emp.join_date) },
           { k: 'Confirmation date', v: fmtDate(emp.confirmation_date) },
           ...(emp.exit_date || emp.status === 'exited' ? [{ k: 'Exit date', v: fmtDate(emp.exit_date) }] : []),
-          ...extra('job'),
+          { k: 'Work location', v: emp.work_location_name || '—' },
+          { k: 'Shift', v: emp.shift_name || '—' },
         ]} />
       </Card>
-      <div className="stack" style={{ gap: 20 }}>
-        {hasBank ? (
-          <Card title="Bank & statutory">
-            <KeyValue items={[
-              { k: 'Bank', v: emp.bank_name || '—' },
-              { k: 'Account holder', v: emp.bank_account_name || '—' },
-              { k: 'Account number', v: emp.bank_account_number ? <span className="mono">{emp.bank_account_number}</span> : '—' },
-              { k: 'IFSC', v: emp.bank_ifsc ? <span className="mono">{emp.bank_ifsc}</span> : '—' },
-              { k: 'Tax ID', v: emp.tax_id ? <span className="mono">{emp.tax_id}</span> : '—' },
-              { k: 'PF number', v: emp.pf_number ? <span className="mono">{emp.pf_number}</span> : '—' },
-            ]} />
-          </Card>
-        ) : null}
-        <Card title="Emergency contact">
+      {hasBank ? (
+        <Card title="Bank & statutory">
           <KeyValue items={[
-            { k: 'Name', v: emp.emergency_contact_name || '—' },
-            { k: 'Phone', v: emp.emergency_contact_phone ? <a href={`tel:${emp.emergency_contact_phone}`}>{emp.emergency_contact_phone}</a> : '—' },
+            { k: 'Bank', v: emp.bank_name || '—' },
+            { k: 'Account holder', v: emp.bank_account_name || '—' },
+            { k: 'Account number', v: emp.bank_account_number ? <span className="mono">{emp.bank_account_number}</span> : '—' },
+            { k: 'IFSC', v: emp.bank_ifsc ? <span className="mono">{emp.bank_ifsc}</span> : '—' },
+            { k: 'Tax ID', v: emp.tax_id ? <span className="mono">{emp.tax_id}</span> : '—' },
+            { k: 'PF number', v: emp.pf_number ? <span className="mono">{emp.pf_number}</span> : '—' },
           ]} />
         </Card>
-      </div>
-      {otherGroups.length ? otherGroups.map((g) => (
-        <Card key={g.section} title={g.section}>
-          <KeyValue items={g.defs.map((d) => ({ k: d.label, v: customFieldDisplay(d, emp.custom_fields?.[d.key]) }))} />
+      ) : null}
+      <Card title="Emergency contact">
+        <KeyValue items={[
+          { k: 'Name', v: emp.emergency_contact_name || '—' },
+          { k: 'Phone', v: link(emp.emergency_contact_phone, `tel:${emp.emergency_contact_phone}`) },
+        ]} />
+      </Card>
+      {groups.length ? (
+        <Card title="Custom fields">
+          {groups.map((g) => (
+            <div key={g.section} style={{ marginBottom: 8 }}>
+              {groups.length > 1 ? <div className="section-title">{g.section}</div> : null}
+              <KeyValue items={g.defs.map((d) => ({ k: d.label, v: customFieldDisplay(d, emp.custom_fields?.[d.key]) }))} />
+            </div>
+          ))}
         </Card>
-      )) : null}
-      {emp.notes ? <Card title="Notes" className="span-2"><p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{emp.notes}</p></Card> : null}
+      ) : null}
+      {emp.notes ? <Card title="Notes"><p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{emp.notes}</p></Card> : null}
     </div>
   );
 }
@@ -618,15 +620,16 @@ function AssetsTab({ employeeId }: { employeeId: number }) {
 interface JourneyStage { id: number; name: string; description?: string | null; sort_order: number; color: string; icon: string; status: 'pending' | 'in_progress' | 'completed' | 'skipped'; started_at?: string | null; completed_at?: string | null; owner?: string | null; notes?: string | null; checklist: { label: string; done: boolean }[] }
 interface JourneyResponse { employee: { id: number; first_name: string; last_name: string; join_date?: string | null; vacancy_title?: string | null }; stages: JourneyStage[]; summary: { total: number; completed: number; percent: number; current_stage: string | null } }
 const STAGE_ICONS: Record<string, string> = { flag: '⚑', doc: '📄', laptop: '💻', people: '👥', star: '★', check: '✓', book: '📘', chat: '💬', key: '🔑', gift: '🎁', clock: '⏱' };
-function JourneyTab({ employeeId }: { employeeId: number }) {
+function JourneyTab({ employeeId, candidateId }: { employeeId: number; candidateId?: number | null }) {
   const j = useFetch<JourneyResponse>(() => api.get(`/api/journey/employee/${employeeId}`), [employeeId]);
   const { isHr } = useAuth();
   const stages = j.data?.stages || [];
   const s = j.data?.summary;
+  const vacancyTitle = j.data?.employee?.vacancy_title;
   return (
     <Card
       tour="employee-journey"
-      title={<span className="row">Employee journey {s ? <Badge tone={s.percent === 100 ? 'success' : 'info'}>{s.completed} / {s.total} stages</Badge> : null}</span>}
+      title={<span className="row">Employee journey {s ? <Badge tone={s.percent === 100 ? 'success' : 'info'}>{s.completed} / {s.total} stages</Badge> : null}{candidateId ? <Link to={`/recruitment?candidate=${candidateId}`} className="badge badge-info" data-testid="journey-hired-via" title="Open the candidate record">Hired via recruitment{vacancyTitle ? `: ${vacancyTitle}` : ''}</Link> : null}</span>}
       actions={<Link className="btn btn-secondary btn-sm" to={`/journey?employee=${employeeId}`} data-testid="journey-open">{isHr ? 'Edit in Journey' : 'Open Journey'}</Link>}>
       {j.loading && !j.data ? <Spinner /> : (
         <>

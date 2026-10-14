@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../../lib/api';
 import { fmtDate, fmtDateTime, label } from '../../lib/format';
 import { Button, KeyValue, Modal, Spinner, StatusBadge, Table, useConfirm, useFetch, useToast } from '../ui';
-import { HALF_DAY_LABEL, LeaveHistory, LeaveRequest, TypeChip, fmtDays } from './shared';
+import { ApprovalTrail, HALF_DAY_LABEL, LeaveHistory, LeaveRequest, TypeChip, fmtDays } from './shared';
 
 export function DateRange({ r }: { r: { start_date: string; end_date: string; half_day?: string | null } }) {
   const single = r.start_date === r.end_date;
@@ -35,7 +35,7 @@ export function RequestsTable({ rows, loading, showEmployee, canEdit, canCancel,
           { key: 'days', header: 'Days', align: 'right', render: (r) => (r.status === 'correction_pending' && r.correction ? <span>{r.days} <span className="muted">→ {r.correction.days}</span></span> : r.days) },
           { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
           { key: 'reason', header: 'Reason', render: (r) => <span className="muted" title={r.reason || ''}>{r.reason ? (r.reason.length > 60 ? r.reason.slice(0, 60) + '…' : r.reason) : '—'}</span> },
-          { key: 'review_note', header: 'Reviewer note', render: (r) => (r.review_note ? <span title={r.review_note}>“{r.review_note.length > 50 ? r.review_note.slice(0, 50) + '…' : r.review_note}”</span> : <span className="muted">—</span>) },
+          { key: 'approval', header: 'Approval', render: (r) => <ApprovalTrail status={r.status} approverName={r.approver_name} reviewerName={r.reviewer_name} reviewerEmail={r.reviewer_email} reviewedAt={r.reviewed_at} note={r.review_note} /> },
           { key: 'actions', header: '', align: 'right', render: (r) => (
             <span className="row" style={{ justifyContent: 'flex-end', gap: 6 }} onClick={(e) => e.stopPropagation()}>
               {canEdit?.(r) ? <Button size="sm" onClick={() => onEdit?.(r)} data-testid="leave-edit">{r.status === 'approved' ? 'Correct' : 'Edit'}</Button> : null}
@@ -83,7 +83,7 @@ export function RequestDetailModal({ id, onClose }: { id: number; onClose: () =>
             ...(r.status === 'correction_pending' && r.correction ? [{ k: 'Proposed change', v: <span className="correction-proposed"><DateRange r={r.correction} /> · {fmtDays(r.correction.days)}{r.correction.reason ? <span className="muted"> — {r.correction.reason}</span> : null}</span> }] : []),
             { k: 'Reason', v: r.reason || '—' },
             { k: 'Applied', v: fmtDateTime(r.created_at) },
-            { k: 'Reviewed', v: r.reviewed_at ? `${r.reviewer_email || 'Reviewer'} · ${fmtDateTime(r.reviewed_at)}` : '—' },
+            { k: r.status === 'pending' || r.status === 'correction_pending' ? 'Approval' : 'Reviewed', v: <ApprovalTrail status={r.status} approverName={r.approver_name} reviewerName={r.reviewer_name} reviewerEmail={r.reviewer_email} reviewedAt={r.reviewed_at} /> },
             { k: 'Reviewer note', v: r.review_note || '—' },
           ]} />
           <h3 className="mt">History</h3>

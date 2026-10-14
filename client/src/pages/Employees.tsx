@@ -6,11 +6,14 @@ import { usePageTour } from '../lib/tour';
 import { fmtDate, fullName, label } from '../lib/format';
 import { Avatar, Button, Card, Checkbox, PageHeader, SearchInput, Select, Stat, StatusBadge, Table, useFetch, useToast } from '../components/ui';
 import { EmployeeFormModal, EMPLOYEE_STATUSES, type Department, type Employee, type Position } from '../components/EmployeeForm';
+import { Icon } from '../components/Icons';
+import { CandidatePicker, HireModal } from '../components/recruitment/HireModal';
+import type { Candidate } from '../components/recruitment/types';
 
 const TOUR = [
   { element: '[data-tour="employees-stats"]', title: 'Headcount at a glance', description: 'Total staff and a breakdown by status. Click a tile to filter the directory to that status.' },
   { element: '[data-tour="employees-filters"]', title: 'Search and filter', description: 'Search by name, code, email or job title, and narrow by department, position, status or employment type. Tick "Include exited" to see former staff.' },
-  { element: '[data-tour="employees-add"]', title: 'Add an employee', description: 'HR can create a new employee record, fill in job details and custom fields, and optionally create their login in one go.' },
+  { element: '[data-tour="employees-add"]', title: 'Add an employee', description: 'HR can create a new employee record with an auto-generated employee ID and login, or pick a candidate from Recruitment ("From recruitment") so the CV details are prefilled and the hiring journey is completed automatically.' },
   { element: '[data-tour="employees-table"]', title: 'Staff directory', description: 'Every employee you are allowed to see. Click a row to open the full profile with documents, salary, attendance, leave, assets and journey.' },
 ];
 
@@ -29,6 +32,8 @@ export default function Employees() {
   const [employment_type, setEmploymentType] = useState('');
   const [includeExited, setIncludeExited] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [hireCandidate, setHireCandidate] = useState<Candidate | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDq(q.trim()), 250);
@@ -61,7 +66,10 @@ export default function Employees() {
         subtitle="Staff directory: search, filter and open any employee profile."
         actions={isHr ? (
           <div className="row" data-tour="employees-add">
-            <Button variant="primary" onClick={() => setAdding(true)} data-testid="employee-add">+ Add employee</Button>
+            <span className="split-btn">
+              <Button variant="primary" onClick={() => setAdding(true)} data-testid="employee-add">+ Add employee</Button>
+              <Button variant="primary" onClick={() => setPicking(true)} data-testid="employee-from-recruitment" title="Create the employee from a recruitment candidate (Interview / Offer stage)"><Icon name="userPlus" size={15} /> From recruitment</Button>
+            </span>
           </div>
         ) : undefined}
       />
@@ -135,6 +143,8 @@ export default function Employees() {
           }}
         />
       ) : null}
+      {picking ? <CandidatePicker onClose={() => setPicking(false)} onPick={(c) => { setPicking(false); setHireCandidate(c); }} /> : null}
+      {hireCandidate ? <HireModal candidate={hireCandidate} onClose={() => setHireCandidate(null)} /> : null}
     </>
   );
 }

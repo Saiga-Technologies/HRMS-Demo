@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api, qs } from '../../lib/api';
 import { Badge, Button, Card, Checkbox, Field, Input, Modal, Select, Switch, Table, useConfirm, useFetch, useForm, useToast } from '../ui';
-import { DirectoryEmployee, LeaveBalance, LeaveSettings, LeaveType, MONTHS, TypeChip, TypeRules } from './shared';
+import { CompOffSettings, DEFAULT_COMP_OFF, DirectoryEmployee, LeaveBalance, LeaveSettings, LeaveType, MONTHS, TypeChip, TypeRules } from './shared';
 
 /* ------------------------------------------------------------------ */
 /* Balances matrix (HR)                                                */
@@ -191,11 +191,13 @@ export function LeaveSettingsTab({ onSaved }: { onSaved?: (s: LeaveSettings) => 
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (current.data) setV(current.data); }, [current.data]);
   if (!v) return <Card><span className="muted">Loading settings…</span></Card>;
+  const co: CompOffSettings = { ...DEFAULT_COMP_OFF, ...(v.comp_off || {}) };
+  const setCo = (patch: Partial<CompOffSettings>) => setV({ ...v, comp_off: { ...co, ...patch } });
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      const saved = await api.put<LeaveSettings>('/api/settings/leave', v);
+      const saved = await api.put<LeaveSettings>('/api/settings/leave', { ...v, comp_off: co });
       setV(saved);
       onSaved?.(saved);
       toast.success('Leave settings saved');
@@ -218,6 +220,16 @@ export function LeaveSettingsTab({ onSaved }: { onSaved?: (s: LeaveSettings) => 
         <Switch label="Allow negative balance (apply beyond available days)" checked={!!v.allow_negative_balance} onChange={(c) => setV({ ...v, allow_negative_balance: c })} />
         <Switch label="Sandwich rule (weekends and holidays inside a leave count as leave)" checked={!!v.sandwich_rule} onChange={(c) => setV({ ...v, sandwich_rule: c })} />
         <Switch label="Managers can approve their reports' leave (otherwise HR only)" checked={!!v.managers_can_approve} onChange={(c) => setV({ ...v, managers_can_approve: c })} />
+        <div className="form-section" data-tour="leave-compoff-settings">Comp off (automatic detection of extra working days)</div>
+        <Switch label="Comp off enabled (scan attendance for extra working days)" checked={!!co.enabled} onChange={(c) => setCo({ enabled: c })} />
+        <Switch label="Requires manager approval (otherwise credits are added as soon as the employee confirms)" checked={!!co.requires_manager_approval} onChange={(c) => setCo({ requires_manager_approval: c })} />
+        <Switch label="Working on a weekly off earns comp off" checked={!!co.on_weekly_off} onChange={(c) => setCo({ on_weekly_off: c })} />
+        <Switch label="Working on a holiday earns comp off" checked={!!co.on_holiday} onChange={(c) => setCo({ on_holiday: c })} />
+        <Field label="Extra hours threshold (minutes)" hint="On normal days, minutes beyond the standard day before comp off is earned; 0 disables extra-hours credits"><Input type="number" min={0} value={co.extra_hours_threshold_minutes} onChange={(e) => setCo({ extra_hours_threshold_minutes: Number(e.target.value) || 0 })} data-testid="compoff-threshold" /></Field>
+        <Field label="Expiry (days)" hint="Credits must be claimed and used within this many days of the worked date"><Input type="number" min={1} value={co.expiry_days} onChange={(e) => setCo({ expiry_days: Number(e.target.value) || 0 })} data-testid="compoff-expiry" /></Field>
+        <Field label="Full day credit from (minutes worked)"><Input type="number" min={1} value={co.full_day_minutes} onChange={(e) => setCo({ full_day_minutes: Number(e.target.value) || 0 })} /></Field>
+        <Field label="Half day credit from (minutes worked)"><Input type="number" min={1} value={co.half_day_minutes} onChange={(e) => setCo({ half_day_minutes: Number(e.target.value) || 0 })} /></Field>
+        <p className="help span-2">Credits land in the <strong>{co.leave_type_code || 'CO'}</strong> leave type balance once approved. Detection looks at the last 60 days and never credits the same date twice.</p>
       </form>
     </Card>
   );

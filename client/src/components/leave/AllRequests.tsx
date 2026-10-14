@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { api, qs } from '../../lib/api';
+import { useCounts } from '../../lib/notifications';
 import { label } from '../../lib/format';
 import { Button, Card, Input, Select, useFetch } from '../ui';
 import ApplyLeaveModal from './ApplyLeaveModal';
@@ -16,7 +17,9 @@ export function AllRequests({ types, employees, holidays, weeklyOffs, sandwich }
   const list = useFetch<LeaveRequest[]>(() => api.get(`/api/leave/requests${qs(filters)}`), [key]);
   const [apply, setApply] = useState(false);
   const [edit, setEdit] = useState<LeaveRequest | null>(null);
-  const { cancel, dialog } = useCancelRequest(() => list.reload());
+  const { refreshCounts } = useCounts();
+  const reload = () => { list.reload(); refreshCounts(); };
+  const { cancel, dialog } = useCancelRequest(reload);
   const rows = list.data || [];
   return (
     <>
@@ -47,8 +50,8 @@ export function AllRequests({ types, employees, holidays, weeklyOffs, sandwich }
           onCancel={cancel}
         />
       </Card>
-      {apply ? <ApplyLeaveModal types={types} employees={employees} defaultEmployeeId={filters.employee_id ? Number(filters.employee_id) : undefined} holidays={holidays} weeklyOffs={weeklyOffs} sandwich={sandwich} onClose={() => setApply(false)} onSaved={() => { setApply(false); list.reload(); }} /> : null}
-      {edit ? <ApplyLeaveModal types={types} existing={edit} holidays={holidays} weeklyOffs={weeklyOffs} sandwich={sandwich} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); list.reload(); }} /> : null}
+      {apply ? <ApplyLeaveModal types={types} employees={employees} defaultEmployeeId={filters.employee_id ? Number(filters.employee_id) : undefined} holidays={holidays} weeklyOffs={weeklyOffs} sandwich={sandwich} onClose={() => setApply(false)} onSaved={() => { setApply(false); reload(); }} /> : null}
+      {edit ? <ApplyLeaveModal types={types} existing={edit} holidays={holidays} weeklyOffs={weeklyOffs} sandwich={sandwich} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} /> : null}
     </>
   );
 }

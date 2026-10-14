@@ -2,23 +2,29 @@ import React, { useState } from 'react';
 import { api, qs } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { fmtDate, fmtDateTime, fmtMinutes, fmtTime, isoToLocal, label, localToIso, monthIso, todayIso } from '../../lib/format';
+import { Icon } from '../Icons';
 import { Badge, Button, Card, Field, Input, KeyValue, Modal, STATUS_TONE, Select, StatusBadge, Table, Textarea, useConfirm, useFetch, useForm, useToast } from '../ui';
-import { ATTENDANCE_STATUSES, AttendanceRecord, BREAK_TYPES, Break, DirectoryEmployee, daysAgoIso, employeeLabel, fmtDistance } from './shared';
+import { ATTENDANCE_STATUSES, AttendanceRecord, AttendanceSettings, BREAK_TYPES, Break, DirectoryEmployee, daysAgoIso, employeeLabel, fmtDistance } from './shared';
+import { AuditTrail } from './AuditTrail';
+
+/** Callback used by roster/records to open the appeal modal prefilled for an employee + date. */
+export type RaiseAppeal = (p: { employee_id: number; date: string; record?: AttendanceRecord | null }) => void;
 
 /* ------------------------------------------------------------------ */
 /* Daily roster                                                        */
 /* ------------------------------------------------------------------ */
 interface RosterRow { id: number; employee_code: string; first_name: string; last_name: string; department_name?: string | null; shift_id?: number | null; record: AttendanceRecord | null; status: string; leave_type?: string | null }
-interface DailyResponse { date: string; holiday: string | null; weekend: boolean; rows: RosterRow[]; counts: Record<string, number> }
+interface DailyResponse { date: string; holiday: string | null; weekend: boolean; rows: RosterRow[]; counts: Record<string, number>; edit_only_via_appeal?: boolean }
 const ROSTER_STATUSES = ['present', 'half_day', 'absent', 'leave', 'holiday', 'weekend', 'wfh', 'upcoming'];
 
-export function DailyRoster() {
+export function DailyRoster({ onRaiseAppeal }: { onRaiseAppeal?: RaiseAppeal }) {
   const { isHr } = useAuth();
   const [date, setDate] = useState(todayIso());
   const [filter, setFilter] = useState('');
   const data = useFetch<DailyResponse>(() => api.get(`/api/attendance/daily${qs({ date })}`), [date]);
   const [edit, setEdit] = useState<RosterRow | null>(null);
   const counts = data.data?.counts || {};
+  const editOnly = data.data?.edit_only_via_appeal !== false;
   const rows = (data.data?.rows || []).filter((r) => !filter || r.status === filter);
   const shift = (days: number) => {
     const d = new Date(date + 'T00:00:00');
@@ -56,7 +62,10 @@ export function DailyRoster() {
             { key: 'break', header: 'Break', align: 'right', render: (r) => (r.record?.punch_in_at ? fmtMinutes(r.record.break_minutes) : '—') },
             { key: 'late', header: 'Late', align: 'right', render: (r) => (r.record?.late_minutes ? <span className="late">{fmtMinutes(r.record.late_minutes)}</span> : '—') },
             { key: 'fence', header: 'Geofence', render: (r) => <FenceCells rec={r.record} /> },
-            ...(isHr ? [{ key: 'actions', header: '', align: 'right' as const, render: (r: RosterRow) => <Button size="sm" onClick={() => setEdit(r)} data-testid="attendance-edit">Edit</Button> }] : []),
+            { key: 'audit', header: 'Changes', render: (r) => (r.record?.corrected_at || r.record?.correction ? <AuditTrail record={r.record} compact /> : <span className="muted">—</span>) },
+            ...(isHr ? [{ key: 'actions', header: '', align: 'right' as const, render: (r: RosterRow) => (editOnly
+              ? <Button size="sm" onClick={() => onRaiseAppeal?.({ employee_id: r.id, date, record: r.record })} data-testid="attendance-appeal" title="Records can only be changed through an approved appeal"><Icon name="edit" size={13} /> Raise appeal</Button>
+              : <Button size="sm" onClick={() => setEdit(r)} data-testid="attendance-edit">Edit</Button>) }] : []),
           ]}
         />
       </Card>
@@ -125,11 +134,13 @@ export function ManualEditModal({ employeeId, employeeName, date, record, onClos
 /* Records list with filters                                           */
 /* ------------------------------------------------------------------ */
 interface Department { id: number; name: string }
-export function RecordsTab({ employees }: { employees: DirectoryEmployee[] }) {
+export function RecordsTab({ employees, onRaiseAppeal }: { employees: DirectoryEmployee[]; onRaiseAppeal?: RaiseAppeal }) {
   const { isHr } = useAuth();
-  const [filters, setFilters] = useState({ employee_id: '', from: daysAgoIso(30), to: todayIso(), status: '', department_id: '' });
+  const [filters, setFilters] = useState({ employee_id: '', from: daysAgoIso(30), to: todayIso(), status: '', department_id: '', corrected_only: '' });
   const set = (k: keyof typeof filters, v: string) => setFilters((s) => ({ ...s, [k]: v }));
   const depts = useFetch<Department[]>(() => api.get('/api/org/departments'), []);
+  const settings = useFetch<AttendanceSettings>(() => api.get('/api/settings/attendance'), []);
+  const editOnly = settings.data?.edit_only_via_appeal !== false;
   const key = JSON.stringify(filters);
   const list = useFetch<{ items: AttendanceRecord[] }>(() => api.get(`/api/attendance/records${qs({ ...filters, with_breaks: 1 })}`), [key]);
   const [open, setOpen] = useState<AttendanceRecord | null>(null);
@@ -152,6 +163,10 @@ export function RecordsTab({ employees }: { employees: DirectoryEmployee[] }) {
           <option value="">All departments</option>
           {(depts.data || []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </Select>
+        <Select value={filters.corrected_only} onChange={(e) => set('corrected_only', e.target.value)} aria-label="Changes" data-testid="records-corrected">
+          <option value="">All records</option>
+          <option value="1">Changed via appeal only</option>
+        </Select>
         <span className="muted" style={{ marginLeft: 'auto' }}>{rows.length} records · {fmtMinutes(totals.work)} worked · {fmtMinutes(totals.brk)} breaks · {totals.late} late</span>
       </div>
       <Card padded={false} tour="att-records">
@@ -172,16 +187,17 @@ export function RecordsTab({ employees }: { employees: DirectoryEmployee[] }) {
             { key: 'late_minutes', header: 'Late', align: 'right', render: (r) => (r.late_minutes ? fmtMinutes(r.late_minutes) : '—') },
             { key: 'fence', header: 'Geofence', render: (r) => <FenceCells rec={r} /> },
             { key: 'source', header: 'Source', render: (r) => <span className="muted">{r.source}</span> },
+            { key: 'audit', header: 'Changes', render: (r) => (r.corrected_at || r.correction ? <AuditTrail record={r} compact /> : <span className="muted">—</span>) },
           ]}
         />
       </Card>
-      {open ? <RecordDetailModal record={open} canEdit={isHr} onClose={() => setOpen(null)} onChanged={(r) => { setOpen(r); list.reload(); }} onDeleted={() => { setOpen(null); list.reload(); }} /> : null}
+      {open ? <RecordDetailModal record={open} canEdit={isHr && !editOnly} canAppeal={isHr && editOnly} onRaiseAppeal={onRaiseAppeal} onClose={() => setOpen(null)} onChanged={(r) => { setOpen(r); list.reload(); }} onDeleted={() => { setOpen(null); list.reload(); }} /> : null}
     </>
   );
 }
 
-/** Record detail with breaks; HR may edit/delete breaks and delete the record. */
-export function RecordDetailModal({ record, canEdit, onClose, onChanged, onDeleted }: { record: AttendanceRecord; canEdit: boolean; onClose: () => void; onChanged: (r: AttendanceRecord) => void; onDeleted: () => void }) {
+/** Record detail with breaks and audit trail; HR may edit directly only when edit_only_via_appeal is off, otherwise raises an appeal. */
+export function RecordDetailModal({ record, canEdit, canAppeal, onRaiseAppeal, onClose, onChanged, onDeleted }: { record: AttendanceRecord; canEdit: boolean; canAppeal?: boolean; onRaiseAppeal?: RaiseAppeal; onClose: () => void; onChanged: (r: AttendanceRecord) => void; onDeleted: () => void }) {
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
   const [editing, setEditing] = useState<Break | null>(null);
@@ -211,9 +227,12 @@ export function RecordDetailModal({ record, canEdit, onClose, onChanged, onDelet
       footer={<>
         {canEdit ? <Button variant="danger" onClick={remove} style={{ marginRight: 'auto' }} data-testid="record-delete">Delete record</Button> : null}
         {canEdit ? <Button onClick={() => setManual(true)} data-testid="record-edit">Edit punches</Button> : null}
+        {canAppeal ? <Button variant="primary" onClick={() => { onClose(); onRaiseAppeal?.({ employee_id: record.employee_id, date: record.date, record }); }} data-testid="record-appeal"><Icon name="edit" size={13} /> Raise appeal</Button> : null}
         <Button onClick={onClose}>Close</Button>
       </>}>
       {dialog}
+      {canAppeal ? <p className="help" style={{ marginBottom: 10 }}>Attendance can only be changed through an approved appeal (Attendance → Settings). Raise one on the employee's behalf and approve it from the Appeals tab.</p> : null}
+      {record.corrected_at || record.correction ? <div className="mb"><AuditTrail record={record} /></div> : null}
       <KeyValue items={[
         { k: 'Status', v: <StatusBadge status={record.status} /> },
         { k: 'Punch in', v: <span>{fmtDateTime(record.punch_in_at)} {record.punch_in_lat !== null && record.punch_in_lat !== undefined ? <span className="mono muted">({record.punch_in_lat?.toFixed(5)}, {record.punch_in_lng?.toFixed(5)})</span> : null}</span> },
@@ -221,7 +240,8 @@ export function RecordDetailModal({ record, canEdit, onClose, onChanged, onDelet
         { k: 'Geofence', v: <FenceCells rec={record} /> },
         { k: 'Work / break / overtime', v: `${fmtMinutes(record.work_minutes)} / ${fmtMinutes(record.break_minutes)} / ${fmtMinutes(record.overtime_minutes)}` },
         { k: 'Late', v: record.late_minutes ? fmtMinutes(record.late_minutes) : 'No' },
-        { k: 'Source', v: `${record.source}${record.corrected_at ? ` · corrected ${fmtDateTime(record.corrected_at)}` : ''}` },
+        { k: 'Source', v: `${record.source}${record.corrected_at ? ` · changed ${fmtDateTime(record.corrected_at)}${record.corrected_by_name ? ` by ${record.corrected_by_name}` : ''}` : ''}` },
+        ...(record.correction ? [{ k: 'Appeal', v: `#${record.correction.id} · ${label(record.correction.kind)} · raised by ${record.correction.requested_by_name || 'employee'} · approved by ${record.correction.reviewer_name || '—'}` }] : []),
         { k: 'Notes', v: record.notes || '—' },
       ]} />
       <h3 className="mt">Breaks</h3>
@@ -277,7 +297,7 @@ function BreakEditModal({ brk, onClose, onSaved }: { brk: Break; onClose: () => 
 /* ------------------------------------------------------------------ */
 /* Monthly summary                                                     */
 /* ------------------------------------------------------------------ */
-interface SummaryRow { id: number; employee_code: string; first_name: string; last_name: string; department_name?: string | null; present: number; half_day: number; leave: number; absent: number; late_count: number; work_hours: number; break_hours: number; overtime_hours: number }
+interface SummaryRow { id: number; employee_code: string; first_name: string; last_name: string; department_name?: string | null; present: number; half_day: number; leave: number; absent: number; late_count: number; corrected?: number; work_hours: number; break_hours: number; overtime_hours: number }
 export function MonthlySummary() {
   const [period, setPeriod] = useState(monthIso());
   const data = useFetch<{ period: string; working_days: number; rows: SummaryRow[] }>(() => api.get(`/api/attendance/summary${qs({ period })}`), [period]);
@@ -298,6 +318,7 @@ export function MonthlySummary() {
             { key: 'leave', header: 'Leave', align: 'right' },
             { key: 'absent', header: 'Absent', align: 'right', render: (r) => (r.absent ? <span className="late">{r.absent}</span> : 0) },
             { key: 'late_count', header: 'Late', align: 'right' },
+            { key: 'corrected', header: 'Appeals applied', align: 'right', render: (r) => r.corrected || 0 },
             { key: 'work_hours', header: 'Work hrs', align: 'right' },
             { key: 'break_hours', header: 'Break hrs', align: 'right' },
             { key: 'overtime_hours', header: 'OT hrs', align: 'right' },

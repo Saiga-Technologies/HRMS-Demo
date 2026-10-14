@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { fmtMoney, fmtDate } from '../lib/format';
 import { Button } from './ui';
+import { Icon } from './Icons';
 import type { Company } from '../lib/auth';
 
 export interface PayLine { code: string; name: string; amount: number; full_amount?: number; taxable?: boolean; statutory?: boolean; adjustment_id?: number }
@@ -77,7 +78,7 @@ export default function Payslip({ payslip, company, currency, showPrint = true }
           <div className="muted" style={{ fontSize: 12.5 }}>#{payslip.id}{payslip.status ? ` · ${payslip.status}` : ''}</div>
           {showPrint ? (
             <div className="no-print" style={{ marginTop: 8 }}>
-              <Button size="sm" onClick={() => window.print()} data-testid="payslip-print">🖨 Print</Button>
+              <Button size="sm" onClick={() => window.print()} data-testid="payslip-print"><Icon name="print" size={14} /> Print / Save as PDF</Button>
             </div>
           ) : null}
         </div>

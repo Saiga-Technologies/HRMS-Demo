@@ -10,12 +10,34 @@ export interface AttendanceRecord {
   punch_in_at: string | null; punch_in_lat: number | null; punch_in_lng: number | null; punch_in_location_id: number | null; punch_in_within_fence: number | null; punch_in_distance_m: number | null;
   punch_out_at: string | null; punch_out_lat: number | null; punch_out_lng: number | null; punch_out_location_id: number | null; punch_out_within_fence: number | null; punch_out_distance_m: number | null;
   status: string; work_minutes: number; break_minutes: number; overtime_minutes: number; late_minutes: number; source: string; notes?: string | null;
-  corrected_by?: number | null; corrected_at?: string | null; created_at: string; updated_at: string;
+  corrected_by?: number | null; corrected_at?: string | null; corrected_by_name?: string | null; correction_id?: number | null; correction?: AppliedAppeal | null; created_at: string; updated_at: string;
   employee_name?: string; employee_code?: string; department_name?: string | null; punch_in_location_name?: string | null; punch_out_location_name?: string | null;
   breaks?: Break[]; break_limit_exceeded?: boolean;
 }
-export interface AttendanceSettings { require_geofence: boolean; allow_remote_punch: boolean; max_break_minutes: number; auto_punch_out_hours: number; late_mark_after_minutes: number; half_day_below_minutes: number; overtime_after_minutes: number; weekly_offs: number[] }
-export interface Correction { id: number; employee_id: number; date: string; requested_punch_in: string | null; requested_punch_out: string | null; requested_status: string | null; reason: string; status: 'pending' | 'approved' | 'rejected'; requested_by?: number | null; reviewed_by?: number | null; reviewed_at?: string | null; review_note?: string | null; created_at: string; employee_name?: string; employee_code?: string; reviewer_email?: string | null }
+/** Snapshot of a record before an appeal was applied (server: attendance_corrections.previous_values). */
+export interface PreviousValues { punch_in_at?: string | null; punch_out_at?: string | null; status?: string | null; work_minutes?: number | null; break_minutes?: number | null; late_minutes?: number | null; overtime_minutes?: number | null; notes?: string | null; source?: string | null }
+/** The appeal that changed a record, embedded in record responses as `correction`. */
+export interface AppliedAppeal { id: number; kind: AppealKind; reason: string; status: string; requested_by_name?: string | null; approver_name?: string | null; reviewer_name?: string | null; reviewed_at?: string | null; review_note?: string | null; previous_values: PreviousValues | null; requested_punch_in?: string | null; requested_punch_out?: string | null; requested_status?: string | null }
+export interface AttendanceSettings { require_geofence: boolean; allow_remote_punch: boolean; max_break_minutes: number; auto_punch_out_hours: number; late_mark_after_minutes: number; half_day_below_minutes: number; overtime_after_minutes: number; standard_work_minutes: number; weekly_offs: number[]; appeal_deadline_days: number; edit_only_via_appeal: boolean }
+export type AppealKind = 'missed_punch_in' | 'missed_punch_out' | 'missed_both' | 'status' | 'correction';
+export const APPEAL_KINDS: { key: AppealKind; label: string; hint: string }[] = [
+  { key: 'missed_punch_in', label: 'Missed punch in', hint: 'I forgot to punch in; here is when I actually started.' },
+  { key: 'missed_punch_out', label: 'Missed punch out', hint: 'I forgot to punch out; here is when I actually left.' },
+  { key: 'missed_both', label: 'Missed both punches', hint: 'No punches were recorded for the day.' },
+  { key: 'status', label: 'Status change', hint: 'Mark the day as WFH, leave, holiday, etc.' },
+  { key: 'correction', label: 'Time correction', hint: 'A punch was recorded at the wrong time.' },
+];
+export const appealKindLabel = (k?: string | null) => APPEAL_KINDS.find((x) => x.key === k)?.label || (k ? k.replace(/_/g, ' ') : '—');
+export interface Appeal {
+  id: number; employee_id: number; date: string; kind: AppealKind; requested_punch_in: string | null; requested_punch_out: string | null; requested_status: string | null; reason: string; status: 'pending' | 'approved' | 'rejected';
+  requested_by?: number | null; requested_by_name?: string | null; approver_employee_id?: number | null; approver_name?: string | null; reviewed_by?: number | null; reviewed_at?: string | null; reviewer_name?: string | null; reviewer_email?: string | null; review_note?: string | null;
+  applied_record_id?: number | null; previous_values?: PreviousValues | null; created_at: string; employee_name?: string; employee_code?: string; department_name?: string | null;
+  deadline_date: string; deadline_passed: boolean; days_left: number;
+}
+/** @deprecated use Appeal */
+export type Correction = Appeal;
+export interface AppealDetail extends Appeal { record: AttendanceRecord | null; changes: { field: string; from: any; to: any }[]; trail: { id: number; action: string; created_at: string; by_name?: string | null; details?: any }[]; approver_chain?: { employee_id: number; name: string; level: number }[] }
+export interface MissedPunch { date: string; weekday: number; kind: AppealKind; record_id: number | null; punch_in_at: string | null; punch_out_at: string | null; deadline_date: string; deadline_passed: boolean; days_left: number; appeal_id: number | null; appeal_status: string | null; can_appeal: boolean }
 export interface DirectoryEmployee { id: number; employee_code: string; first_name: string; last_name: string; email?: string; department_id?: number | null; department_name?: string | null; position_title?: string | null; manager_id?: number | null; status?: string }
 export interface TodayResponse { date: string; record: AttendanceRecord | null; settings: AttendanceSettings; shift: Shift | null; locations: WorkLocation[] }
 

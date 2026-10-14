@@ -305,6 +305,72 @@ r.put('/payslips/:id', requireHr, wrap(async (req, res) => {
   res.json(parseJson(get(`${slipQuery} WHERE p.id = ?`, [id]), ['earnings', 'deductions']));
 }));
 
+// ---------- Payslip requests (employees apply, HR fulfils / rejects) ----------
+const reqQuery = `SELECT pr.*, e.first_name || ' ' || e.last_name AS employee_name, e.employee_code,
+    COALESCE(he.first_name || ' ' || he.last_name, hu.email) AS handled_by_name,
+    rr.status AS run_status, rr.id AS run_id
+  FROM payslip_requests pr JOIN employees e ON e.id = pr.employee_id
+  LEFT JOIN users hu ON hu.id = pr.handled_by LEFT JOIN employees he ON he.id = hu.employee_id
+  LEFT JOIN payroll_runs rr ON rr.period = pr.period`;
+const PERIOD_RE = /^\d{4}-\d{2}$/;
+
+r.get('/payslip-requests', requireAuth, (req, res) => {
+  const where: string[] = [];
+  const params: any[] = [];
+  if (req.user!.role !== 'hr') {
+    if (!req.user!.employee_id) return res.json([]);
+    where.push('pr.employee_id = ?');
+    params.push(req.user!.employee_id);
+  } else if (req.query.employee_id) { where.push('pr.employee_id = ?'); params.push(toInt(req.query.employee_id)); }
+  if (req.query.status) { where.push('pr.status = ?'); params.push(String(req.query.status)); }
+  res.json(all(`${reqQuery}${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY CASE pr.status WHEN 'pending' THEN 0 ELSE 1 END, pr.created_at DESC, pr.id DESC`, params));
+});
+r.post('/payslip-requests', requireAuth, wrap(async (req, res) => {
+  const eid = req.user!.employee_id;
+  if (!eid) throw badRequest('Your login is not linked to an employee record');
+  requireFields(req.body, ['period']);
+  const period = String(req.body.period);
+  if (!PERIOD_RE.test(period)) throw badRequest('period must be YYYY-MM');
+  const [y, m] = period.split('-').map(Number);
+  if (m < 1 || m > 12) throw badRequest('period must be YYYY-MM');
+  if (period > nowIso().slice(0, 7)) throw badRequest('You can only request payslips for the current or past months');
+  if (y < 2000) throw badRequest('Period is too far in the past');
+  if (get('SELECT 1 FROM payslip_requests WHERE employee_id = ? AND period = ? AND status = ?', [eid, period, 'pending'])) throw badRequest(`You already have a pending request for ${period}`);
+  const id = insert('payslip_requests', { employee_id: eid, period, reason: req.body.reason ? String(req.body.reason).slice(0, 500) : null, status: 'pending', created_at: nowIso() });
+  audit(req, 'create', 'payslip_request', id, { period });
+  res.status(201).json(get(`${reqQuery} WHERE pr.id = ?`, [id]));
+}));
+r.post('/payslip-requests/:id/fulfil', requireHr, wrap(async (req, res) => {
+  const id = toInt(req.params.id)!;
+  const pr = get<any>('SELECT * FROM payslip_requests WHERE id = ?', [id]);
+  if (!pr) throw notFound();
+  if (pr.status !== 'pending') throw badRequest(`Request is already ${pr.status}`);
+  const wanted = toInt(req.body?.payslip_id);
+  let slip = wanted
+    ? get<any>('SELECT p.id, p.employee_id, r.period, r.status FROM payslips p JOIN payroll_runs r ON r.id = p.run_id WHERE p.id = ?', [wanted])
+    : get<any>('SELECT p.id, p.employee_id, r.period, r.status FROM payslips p JOIN payroll_runs r ON r.id = p.run_id WHERE p.employee_id = ? AND r.period = ?', [pr.employee_id, pr.period]);
+  if (wanted && slip && (slip.employee_id !== pr.employee_id || slip.period !== pr.period)) throw badRequest('That payslip does not belong to this employee and period');
+  if (!slip) {
+    const run_ = get<any>('SELECT status FROM payroll_runs WHERE period = ?', [pr.period]);
+    if (!run_) throw badRequest(`No payroll run for ${pr.period}. Create and approve the run first.`);
+    if (run_.status === 'draft') throw badRequest(`The ${pr.period} run is still a draft. Process and approve it before fulfilling this request.`);
+    throw badRequest(`The ${pr.period} run has no payslip for this employee (they may have been skipped for lack of a salary structure).`);
+  }
+  if (!['approved', 'paid'].includes(slip.status)) throw badRequest(`The ${pr.period} run is ${slip.status}; payslips are released only once the run is approved.`);
+  update('payslip_requests', id, { status: 'fulfilled', payslip_id: slip.id, handled_by: req.user!.id, handled_at: nowIso(), note: req.body?.note ? String(req.body.note).slice(0, 500) : null });
+  audit(req, 'fulfil', 'payslip_request', id, { payslip_id: slip.id });
+  res.json(get(`${reqQuery} WHERE pr.id = ?`, [id]));
+}));
+r.post('/payslip-requests/:id/reject', requireHr, wrap(async (req, res) => {
+  const id = toInt(req.params.id)!;
+  const pr = get<any>('SELECT * FROM payslip_requests WHERE id = ?', [id]);
+  if (!pr) throw notFound();
+  if (pr.status !== 'pending') throw badRequest(`Request is already ${pr.status}`);
+  update('payslip_requests', id, { status: 'rejected', handled_by: req.user!.id, handled_at: nowIso(), note: req.body?.note ? String(req.body.note).slice(0, 500) : null });
+  audit(req, 'reject', 'payslip_request', id);
+  res.json(get(`${reqQuery} WHERE pr.id = ?`, [id]));
+}));
+
 /** Summary for the HR payroll dashboard. */
 r.get('/summary', requireHr, (_req, res) => {
   const withStructure = get<any>("SELECT COUNT(DISTINCT employee_id) AS n FROM salary_structures s JOIN employees e ON e.id = s.employee_id WHERE e.status != 'exited'")!.n;

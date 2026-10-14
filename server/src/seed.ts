@@ -4,6 +4,7 @@ import { getDb, get, all, insert, run, setSetting, transaction, UPLOAD_DIR } fro
 import { hashPassword } from './auth.js';
 import { nowIso, today, addDays } from './util.js';
 import { DEFAULT_COMPANY, DEFAULT_DOCUMENT_SETTINGS, DEFAULT_PAYROLL_SETTINGS, DEFAULT_ATTENDANCE_SETTINGS, DEFAULT_LEAVE_SETTINGS } from './routes/settings.js';
+import { parseCv, scoreCv } from './cvparser.js';
 
 export const DEMO_PASSWORD = 'Password123!';
 
@@ -113,7 +114,7 @@ export function seed() {
 
     // Vacancies
     const vac = insert('vacancies', { title: 'Software Engineer (Platform)', position_id: pSe, department_id: platform, openings: 2, budget_annual: 1800000, status: 'open', opened_at: addDays(today(), -40), created_at: now });
-    insert('vacancies', { title: 'Account Executive', position_id: pAe, department_id: sales, openings: 1, budget_annual: 900000, status: 'open', opened_at: addDays(today(), -12), created_at: now });
+    const vacAe = insert('vacancies', { title: 'Account Executive', position_id: pAe, department_id: sales, openings: 1, budget_annual: 900000, status: 'open', opened_at: addDays(today(), -12), created_at: now });
 
     // Employees
     const emp = (code: string, first: string, last: string, email: string, dept: number, position: number, manager: number | null, join: string, extra: Record<string, any> = {}) =>
@@ -153,8 +154,10 @@ export function seed() {
       insert('job_descriptions', { title, position_id, department_id, summary, responsibilities: resp, requirements: reqs, skills, employment_type: 'full_time', experience_min: min, experience_max: max, salary_min: 800000, salary_max: 2400000, location: 'Bengaluru', status, version: 1, created_at: now, updated_at: now });
     const jdSe = jd('Software Engineer', pSe, platform, 'Build and operate the core platform services used by every product team.', ['Design, build and ship backend services', 'Own quality through tests and code review', 'Participate in on-call rotation'], ['2+ years building production software', 'Strong fundamentals in data structures', 'Experience with SQL databases'], ['TypeScript', 'Node.js', 'SQL', 'AWS'], 2, 5, 'published');
     jd('Senior Software Engineer', pSse, platform, 'Lead design of platform components and mentor engineers.', ['Lead technical design for a product area', 'Mentor engineers', 'Drive reliability and performance'], ['5+ years of experience', 'Track record of leading projects'], ['TypeScript', 'Distributed systems', 'Observability'], 5, 9, 'published');
-    jd('Account Executive', pAe, sales, 'Own the full sales cycle for mid-market accounts.', ['Prospect and qualify leads', 'Run demos and negotiate contracts', 'Maintain CRM hygiene'], ['2+ years B2B SaaS sales'], ['Negotiation', 'CRM', 'Presentation'], 2, 6, 'draft');
+    const jdAe = jd('Account Executive', pAe, sales, 'Own the full sales cycle for mid-market accounts.', ['Prospect and qualify leads', 'Run demos and negotiate contracts', 'Maintain CRM hygiene'], ['2+ years B2B SaaS sales', 'Comfortable presenting to senior stakeholders'], ['Negotiation', 'CRM', 'Presentation', 'Lead generation'], 2, 6, 'published');
     run('UPDATE vacancies SET job_description_id = ? WHERE id = ?', [jdSe, vac]);
+    run('UPDATE vacancies SET job_description_id = ? WHERE id = ?', [jdAe, vacAe]);
+    seedCandidates({ vac, vacAe, jdSe, jdAe, pSe, pAe, now });
 
     // Salary structures
     const struct = (employee_id: number, basic: number, special: number) => insert('salary_structures', { employee_id, effective_from: '2024-04-01', currency: 'INR', basic, components: [{ component_id: cSpecial, value: special }, { component_id: cHra, value: 40 }], ctc_annual: Math.round((basic * 1.4 + 1600 + special) * 12 * 1.12), created_by: 1, created_at: now });
@@ -241,8 +244,175 @@ export function seed() {
   return true;
 }
 
+/* ------------------------------------------------------------------ */
+/* Recruitment: a small CV pool in different pipeline stages            */
+/* ------------------------------------------------------------------ */
+const CV_TEXTS: Record<string, string> = {
+  aarav: `Aarav Sharma
+Software Engineer
+aarav.sharma@example.com | +91 98450 11223 | Bengaluru
+
+Summary
+Backend engineer with 3 years of experience building TypeScript and Node.js services on AWS. Strong SQL fundamentals, comfortable with on-call and code review.
+
+Skills
+TypeScript, Node.js, Express, PostgreSQL, SQL, AWS (Lambda, S3), Docker, REST APIs, Jest, Git, CI/CD
+
+Experience
+Software Engineer, Nimbus Labs, Bengaluru (2023 - Present)
+- Built order and inventory microservices in TypeScript / Node.js with PostgreSQL.
+- Owned deployment pipelines (GitHub Actions) and production monitoring.
+Associate Engineer, Nimbus Labs (2022 - 2023)
+- Wrote unit tests and fixed data structures issues in the catalogue service.
+
+Education
+B.Tech Computer Science, RV College of Engineering (2018 - 2022)`,
+  isha: `Isha Patel
+Full Stack Developer
+isha.patel@example.com | +91 99000 44556 | Pune
+
+Profile
+Full stack developer with 4 years of experience shipping React front-ends and Node.js back-ends for SaaS products. Experienced with MySQL and Google Cloud.
+
+Skills
+JavaScript, TypeScript, React, Node.js, MySQL, GCP, Docker, GraphQL, Git, Agile
+
+Experience
+Full Stack Developer, Orbit Commerce, Pune (2021 - Present)
+- Delivered customer portal features in React and Node.js backed by MySQL.
+- Led code reviews for a team of five and introduced Playwright tests.
+Software Developer, Blue Fern Systems (2020 - 2021)
+
+Education
+B.E. Information Technology, Pune University (2016 - 2020)`,
+  dev: `Dev Kulkarni
+Junior Developer
+dev.kulkarni@example.com | +91 98220 77889
+
+Objective
+Fresher with 1 year of internship experience in Java looking for a software role.
+
+Skills
+Java, Spring Boot, HTML, CSS
+
+Experience
+Intern, Sunrise Infotech (2024 - 2025)
+- Maintained internal admin pages and fixed bugs in a Spring Boot application.
+
+Education
+Diploma in Computer Applications, Government Polytechnic (2021 - 2024)`,
+  nikhil: `Nikhil Rao
+Senior Software Engineer
+nikhil.rao@example.com | +91 98860 33445 | Hyderabad
+
+Summary
+Platform engineer with 5 years of experience designing production software in Node.js and TypeScript on AWS. Deep SQL and PostgreSQL knowledge, Kubernetes operator, mentor to junior engineers.
+
+Skills
+TypeScript, Node.js, SQL, PostgreSQL, AWS, Kubernetes, Docker, Terraform, Kafka, Observability, Distributed systems, Jest, Git
+
+Experience
+Senior Software Engineer, Vectorly, Hyderabad (2022 - Present)
+- Designed the event pipeline (Kafka + Node.js) that processes 2M events per hour.
+- Led the migration of 14 services to Kubernetes on AWS with zero downtime.
+Software Engineer, Vectorly (2020 - 2022)
+- Built billing APIs in TypeScript with PostgreSQL; wrote the data structures library used across teams.
+
+Education
+M.Sc Computer Science, IIIT Hyderabad (2018 - 2020)
+B.Tech Computer Science, JNTU (2014 - 2018)`,
+  sneha: `Sneha Reddy
+Engineering Manager
+sneha.reddy@example.com | +91 97400 55667 | Chennai
+
+Summary
+Engineering manager with 8 years of experience leading Python and Django teams for analytics products.
+
+Skills
+Python, Django, Pandas, Machine learning, Team management, Leadership, Stakeholder management, MySQL
+
+Experience
+Engineering Manager, DataPeak Analytics (2021 - Present)
+Senior Developer, DataPeak Analytics (2017 - 2021)
+
+Education
+MBA, ISB Hyderabad (2015 - 2017)
+B.Tech, Anna University (2009 - 2013)`,
+  farhan: `Farhan Ali
+Account Executive
+farhan.ali@example.com | +91 98100 22334 | Mumbai
+
+Summary
+Account executive with 3 years of experience in B2B SaaS sales, owning the full cycle from first call to negotiation and close. Comfortable presenting product demos to CXO stakeholders.
+
+Skills
+B2B sales, Negotiation, Presentation, Salesforce, HubSpot, Pipeline management, Forecasting, Communication
+
+Experience
+Account Executive, CloudDesk SaaS, Mumbai (2023 - Present)
+- Closed INR 4.2 Cr in new ARR across 38 mid-market accounts; 118% of quota.
+- Maintained Salesforce CRM hygiene and ran weekly pipeline reviews.
+Sales Development Representative, CloudDesk SaaS (2022 - 2023)
+
+Education
+BBA Marketing, NMIMS Mumbai (2019 - 2022)`,
+};
+
+function seedCandidates(ctx: { vac: number; vacAe: number; jdSe: number; jdAe: number; pSe: number; pAe: number; now: string }) {
+  const { vac, vacAe, jdSe, jdAe, pSe, pAe } = ctx;
+  const jdFor = (id: number) => { const j = get<any>('SELECT * FROM job_descriptions WHERE id = ?', [id])!; return { id: j.id, title: j.title, skills: JSON.parse(j.skills), requirements: JSON.parse(j.requirements), experience_min: j.experience_min, experience_max: j.experience_max }; };
+  const extra = all<any>("SELECT skills FROM job_descriptions WHERE status = 'published'").flatMap((r) => JSON.parse(r.skills || '[]') as string[]);
+  const at = (daysAgo: number, hour = 10) => `${addDays(today(), -daysAgo)}T${String(hour).padStart(2, '0')}:00:00.000Z`;
+  const files: { stored: string; buf: Buffer }[] = [];
+  const cand = (key: string, first: string, last: string, email: string, phone: string, source: string, vacancy_id: number, position_id: number, jdId: number, stage: string, createdDaysAgo: number, extraCols: Record<string, any>, evs: { type: string; note?: string | null; data?: any; daysAgo: number }[]) => {
+    const text = CV_TEXTS[key];
+    const parsed = parseCv(text, extra);
+    const { score, breakdown } = scoreCv(parsed, text, jdFor(jdId));
+    const stored = `cv_seed_${key}.pdf`;
+    files.push({ stored, buf: sampleFile('pdf', text) });
+    const created = at(createdDaysAgo);
+    const id = insert('candidates', {
+      first_name: first, last_name: last, email, phone, source, vacancy_id, position_id, cv_original_name: `${first}_${last}_CV.pdf`, cv_stored_name: stored, cv_mime: 'application/pdf', cv_text: text,
+      parsed, score, score_breakdown: breakdown, stage, created_by: 1, created_at: created, updated_at: at(Math.max(0, createdDaysAgo - 1)), ...extraCols,
+    });
+    insert('candidate_events', { candidate_id: id, type: 'note', note: `CV uploaded (${first}_${last}_CV.pdf)`, data: null, by_user: 1, created_at: created });
+    insert('candidate_events', { candidate_id: id, type: 'score', note: `Scored ${score} against ${breakdown.jd_title}`, data: JSON.stringify({ score, jd_id: jdId }), by_user: 1, created_at: created });
+    for (const e of evs) insert('candidate_events', { candidate_id: id, type: e.type, note: e.note ?? null, data: e.data ? JSON.stringify(e.data) : null, by_user: 1, created_at: at(e.daysAgo, 14) });
+    return id;
+  };
+  cand('aarav', 'Aarav', 'Sharma', 'aarav.sharma@example.com', '+91 98450 11223', 'LinkedIn', vac, pSe, jdSe, 'new', 2, { expected_salary: 1500000, notice_days: 30 }, []);
+  cand('isha', 'Isha', 'Patel', 'isha.patel@example.com', '+91 99000 44556', 'Referral', vac, pSe, jdSe, 'interview', 9, { expected_salary: 1700000, notice_days: 60, rating: 4 }, [
+    { type: 'stage_change', data: { from: 'new', to: 'screening' }, daysAgo: 7 },
+    { type: 'note', note: 'Referred by Meera Iyer; strong React portfolio.', daysAgo: 7 },
+    { type: 'interview', note: 'Technical round 1', data: { date: addDays(today(), 2), interviewer: 'Meera Iyer', round: 'Technical 1' }, daysAgo: 5 },
+    { type: 'stage_change', note: 'Interview scheduled', data: { from: 'screening', to: 'interview' }, daysAgo: 5 },
+  ]);
+  cand('dev', 'Dev', 'Kulkarni', 'dev.kulkarni@example.com', '+91 98220 77889', 'Job board', vac, pSe, jdSe, 'screening', 6, { expected_salary: 600000, notice_days: 0, rating: 2 }, [
+    { type: 'stage_change', data: { from: 'new', to: 'screening' }, daysAgo: 4 },
+    { type: 'note', note: 'Below the experience bar; keep for a junior opening.', daysAgo: 4 },
+  ]);
+  cand('nikhil', 'Nikhil', 'Rao', 'nikhil.rao@example.com', '+91 98860 33445', 'Agency', vac, pSe, jdSe, 'offer', 21, { expected_salary: 2200000, notice_days: 45, rating: 5 }, [
+    { type: 'stage_change', data: { from: 'new', to: 'screening' }, daysAgo: 19 },
+    { type: 'interview', note: 'Technical round', data: { date: addDays(today(), -14), interviewer: 'Rahul Verma', round: 'Technical', feedback: 'Excellent system design; clear communicator.', outcome: 'pass' }, daysAgo: 16 },
+    { type: 'stage_change', note: 'Interview scheduled', data: { from: 'screening', to: 'interview' }, daysAgo: 16 },
+    { type: 'interview', note: 'HR round', data: { date: addDays(today(), -10), interviewer: 'Sara Thomas', round: 'HR', feedback: 'Salary expectation within budget; 45 days notice.', outcome: 'pass' }, daysAgo: 12 },
+    { type: 'stage_change', note: 'Offer approved by CTO', data: { from: 'interview', to: 'offer' }, daysAgo: 8 },
+  ]);
+  cand('sneha', 'Sneha', 'Reddy', 'sneha.reddy@example.com', '+91 97400 55667', 'LinkedIn', vac, pSe, jdSe, 'rejected', 15, { expected_salary: 4000000, notice_days: 90, rating: 3 }, [
+    { type: 'stage_change', data: { from: 'new', to: 'screening' }, daysAgo: 13 },
+    { type: 'stage_change', note: 'Over-qualified for an IC role; different stack.', data: { from: 'screening', to: 'rejected' }, daysAgo: 11 },
+  ]);
+  cand('farhan', 'Farhan', 'Ali', 'farhan.ali@example.com', '+91 98100 22334', 'Careers page', vacAe, pAe, jdAe, 'new', 1, { expected_salary: 1100000, notice_days: 30 }, []);
+  (globalThis as any).__seedCvs = files;
+}
+
 /** Write tiny valid PDF/PNG/JPG files for the seeded documents so previews work. */
 function seedFiles() {
+  const cvs = (globalThis as any).__seedCvs as { stored: string; buf: Buffer }[] | undefined;
+  if (cvs) {
+    for (const f of cvs) fs.writeFileSync(path.join(UPLOAD_DIR, f.stored), f.buf);
+    delete (globalThis as any).__seedCvs;
+  }
   const docs = (globalThis as any).__seedDocs as any[] | undefined;
   if (!docs) return;
   for (const d of docs) {
@@ -256,7 +426,11 @@ function seedFiles() {
 }
 export function sampleFile(format: string, label = 'Sample'): Buffer {
   if (format === 'pdf') {
-    const text = `BT /F1 24 Tf 72 720 Td (${label.replace(/[()\\]/g, '')}) Tj ET`;
+    const esc = (l: string) => l.replace(/[^\x20-\x7e]/g, '').replace(/[()\\]/g, '');
+    const lines = label.split('\n').map(esc);
+    const text = lines.length > 1
+      ? `BT /F1 9 Tf 11 TL 50 760 Td ${lines.slice(0, 64).map((l) => `(${l}) Tj T*`).join(' ')} ET`
+      : `BT /F1 24 Tf 72 720 Td (${lines[0]}) Tj ET`;
     const objs = [
       '<< /Type /Catalog /Pages 2 0 R >>',
       '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',

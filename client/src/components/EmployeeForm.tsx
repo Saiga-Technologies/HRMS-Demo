@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { fmtDate, label } from '../lib/format';
 import { Button, Checkbox, Field, Input, Modal, Select, Switch, Textarea, useFetch, useToast } from './ui';
+import { Icon } from './Icons';
 
 /* ------------------------------------------------------------------ */
 /* Shared employee types                                               */
@@ -27,6 +28,8 @@ export interface Employee {
   work_location_id?: number | null;
   shift_id?: number | null;
   vacancy_id?: number | null;
+  vacancy_title?: string | null;
+  candidate_id?: number | null;
   join_date?: string | null;
   confirmation_date?: string | null;
   exit_date?: string | null;
@@ -123,7 +126,7 @@ export function groupDefs(defs: CustomFieldDef[]): { section: string; defs: Cust
 export type EmployeeFormMode = 'create' | 'edit' | 'self';
 type Values = Record<string, any>;
 
-function initialValues(e?: Partial<Employee> | null): Values {
+function initialValues(e?: Partial<Employee> | null, prefill?: Prefill | null): Values {
   const v: Values = {};
   for (const k of TEXT_FIELDS) v[k] = (e as any)?.[k] ?? '';
   for (const k of ID_FIELDS) v[k] = (e as any)?.[k] ?? '';
@@ -132,13 +135,29 @@ function initialValues(e?: Partial<Employee> | null): Values {
   v.create_login = true;
   v.login_role = 'employee';
   v.login_password = '';
+  if (prefill) {
+    for (const [k, val] of Object.entries(prefill)) {
+      if (val === undefined) continue;
+      if (TEXT_FIELDS.includes(k) || ID_FIELDS.includes(k) || ['create_login', 'login_role'].includes(k)) v[k] = val === null ? '' : k === 'create_login' ? !!val : val;
+    }
+  }
   return v;
 }
 
-export function EmployeeFormModal({ employee, mode, onClose, onSaved }: { employee?: Partial<Employee> | null; mode: EmployeeFormMode; onClose: () => void; onSaved: (saved: Employee & { temporary_password?: string }) => void }) {
+/** Values to prefill the create form with (e.g. from a recruitment candidate). Any employee column plus create_login / login_role. */
+export type Prefill = Partial<Employee> & { create_login?: boolean; login_role?: string; [k: string]: any };
+
+/**
+ * Create / edit modal. In `create` mode with `candidateId` set the form submits to the recruitment hire
+ * endpoint instead of POST /api/employees, so the candidate becomes the employee (stage → hired, journey
+ * stages pre-completed, CV copied). `prefill` seeds the fields (names, contact, position, department…).
+ */
+export function EmployeeFormModal({ employee, mode, onClose, onSaved, prefill, candidateId, candidateName }: { employee?: Partial<Employee> | null; mode: EmployeeFormMode; onClose: () => void; onSaved: (saved: Employee & { temporary_password?: string }) => void; prefill?: Prefill | null; candidateId?: number | null; candidateName?: string }) {
   const toast = useToast();
   const full = mode !== 'self';
-  const [v, setV] = useState<Values>(() => initialValues(employee));
+  const [v, setV] = useState<Values>(() => initialValues(employee, prefill));
+  const [editCode, setEditCode] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [cf, setCf] = useState<Record<string, any>>(() => ({ ...(employee?.custom_fields || {}) }));
   const [busy, setBusy] = useState(false);
   const set = (k: string, val: any) => setV((s) => ({ ...s, [k]: val }));
@@ -155,6 +174,18 @@ export function EmployeeFormModal({ employee, mode, onClose, onSaved }: { employ
   useEffect(() => {
     if (mode === 'create' && nextCode.data?.employee_code) setV((s) => (s.employee_code ? s : { ...s, employee_code: nextCode.data!.employee_code }));
   }, [mode, nextCode.data]);
+  const regenerateCode = async () => {
+    setRegenerating(true);
+    try {
+      const r = await api.get<{ employee_code: string }>('/api/employees/next-code');
+      set('employee_code', r.employee_code);
+      setEditCode(false);
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const positionOptions = useMemo(() => {
     const all = (positions.data || []).filter((p) => p.active !== 0 || String(p.id) === String(v.position_id));
@@ -195,8 +226,12 @@ export function EmployeeFormModal({ employee, mode, onClose, onSaved }: { employ
     }
     setBusy(true);
     try {
-      const saved = mode === 'create' ? await api.post<Employee & { temporary_password?: string }>('/api/employees', body) : await api.put<Employee>(`/api/employees/${employee!.id}`, body);
-      toast.success(mode === 'create' ? 'Employee created' : 'Employee updated');
+      const saved = mode === 'create'
+        ? candidateId
+          ? await api.post<Employee & { temporary_password?: string }>(`/api/recruitment/candidates/${candidateId}/hire`, body)
+          : await api.post<Employee & { temporary_password?: string }>('/api/employees', body)
+        : await api.put<Employee>(`/api/employees/${employee!.id}`, body);
+      toast.success(mode === 'create' ? (candidateId ? 'Candidate hired and employee created' : 'Employee created') : 'Employee updated');
       onSaved(saved);
     } catch (err) {
       toast.error(err);
@@ -205,16 +240,21 @@ export function EmployeeFormModal({ employee, mode, onClose, onSaved }: { employ
     }
   };
 
-  const title = mode === 'create' ? 'New employee' : mode === 'edit' ? `Edit ${employee?.first_name || 'employee'}` : 'Edit my contact details';
+  const title = mode === 'create' ? (candidateId ? `Hire ${candidateName || 'candidate'} → Create employee` : 'New employee') : mode === 'edit' ? `Edit ${employee?.first_name || 'employee'}` : 'Edit my contact details';
   return (
     <Modal open wide title={title} onClose={onClose} testId="employee-modal"
       footer={<>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="primary" loading={busy} onClick={() => save()} data-testid="employee-save">{mode === 'create' ? 'Create employee' : 'Save changes'}</Button>
+        <Button variant="primary" loading={busy} onClick={() => save()} data-testid={candidateId ? 'hire-submit' : 'employee-save'}>{mode === 'create' ? (candidateId ? 'Hire & create employee' : 'Create employee') : 'Save changes'}</Button>
       </>}>
       <form onSubmit={save} className="form-grid">
         {full ? (
           <>
+            {candidateId ? (
+              <div className="callout span-2" style={{ marginBottom: 0 }}>
+                <Icon name="userPlus" size={15} /> Hiring from recruitment: the candidate moves to <strong>Hired</strong>, the vacancy's hired count goes up, the journey stages up to <em>Offer</em> are completed and a PDF CV is copied into the employee's documents.
+              </div>
+            ) : null}
             <div className="form-section">Basic</div>
             <Field label="First name" required><Input {...bind('first_name')} required autoFocus data-testid="employee-first-name" /></Field>
             <Field label="Last name"><Input {...bind('last_name')} data-testid="employee-last-name" /></Field>
@@ -227,9 +267,11 @@ export function EmployeeFormModal({ employee, mode, onClose, onSaved }: { employ
                 {GENDERS.map((g) => <option key={g} value={g}>{g.replace(/_/g, ' ')}</option>)}
               </Select>
             </Field>
-            <Field label="Employee code" hint={mode === 'create' ? 'Prefilled with the next free code' : undefined} required>
-              <Input {...bind('employee_code')} required className="mono" data-testid="employee-code" />
-            </Field>
+            {mode !== 'create' ? (
+              <Field label="Employee code" required>
+                <Input {...bind('employee_code')} required className="mono" data-testid="employee-code" />
+              </Field>
+            ) : null}
             <Field label="Employment type">
               <Select {...bind('employment_type')} data-testid="employee-type">
                 {typeOptions.map((t) => <option key={t} value={t}>{label(t)}</option>)}
@@ -319,9 +361,18 @@ export function EmployeeFormModal({ employee, mode, onClose, onSaved }: { employ
 
             {mode === 'create' ? (
               <>
-                <div className="form-section">Login</div>
-                <div className="span-2">
-                  <Checkbox label="Create a login for this employee (uses the email above)" checked={!!v.create_login} onChange={(e) => set('create_login', e.target.checked)} data-testid="employee-create-login" />
+                <div className="form-section">Login &amp; user ID</div>
+                <Field label="Employee ID" required hint={editCode ? 'Editing manually; must be unique' : 'Auto-generated from the company prefix. Regenerate to pick the next free code.'}>
+                  <div className="input-group">
+                    <Input {...bind('employee_code')} required readOnly={!editCode} className={`mono ${editCode ? '' : 'readonly'}`} data-testid="employee-code" aria-label="Employee ID" />
+                    <button type="button" className="btn btn-sm" onClick={regenerateCode} disabled={regenerating} title="Regenerate the next free employee ID" aria-label="Regenerate employee ID" data-testid="employee-code-regenerate">{regenerating ? <span className="spinner" /> : <Icon name="sparkles" size={15} />}</button>
+                    <button type="button" className="btn btn-sm" onClick={() => setEditCode((x) => !x)} title={editCode ? 'Lock' : 'Edit manually'} aria-label={editCode ? 'Lock employee ID' : 'Edit employee ID manually'}><Icon name={editCode ? 'lock' : 'edit'} size={15} /></button>
+                  </div>
+                </Field>
+                <div className="field">
+                  <span className="field-label">Login</span>
+                  <Checkbox label="Create a login (user ID = the email above)" checked={!!v.create_login} onChange={(e) => set('create_login', e.target.checked)} data-testid="employee-create-login" />
+                  <span className="field-hint">{v.create_login ? 'A temporary password is generated automatically and shown once after saving; the user must change it on first login.' : 'No login will be created; you can add one later.'}</span>
                 </div>
                 {v.create_login ? (
                   <>
@@ -331,7 +382,7 @@ export function EmployeeFormModal({ employee, mode, onClose, onSaved }: { employ
                         <option value="manager">Manager</option>
                       </Select>
                     </Field>
-                    <Field label="Password" hint="Leave blank to generate a temporary password; the user must change it on first login.">
+                    <Field label="Password (optional)" hint="Leave blank to auto-generate a readable temporary password such as Welcome-7f3a!">
                       <Input type="text" autoComplete="off" {...bind('login_password')} placeholder="Auto-generate" data-testid="employee-login-password" />
                     </Field>
                   </>

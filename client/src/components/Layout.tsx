@@ -20,18 +20,28 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/jobs', label: 'Job descriptions', icon: 'briefcase', roles: ['hr', 'manager'] },
       { to: '/journey', label: 'Employee journey', icon: 'compass', badge: 'nav_journey' },
       { to: '/documents', label: 'Documents', icon: 'folder', badge: 'nav_documents' },
+      { to: '/letters', label: 'HR letters', icon: 'mail', badge: 'nav_letters' },
+      { to: '/performance', label: 'Performance', icon: 'award', badge: 'nav_performance' },
     ],
   },
   {
     group: 'Operations',
     items: [
       { to: '/attendance', label: 'Attendance', icon: 'clock', badge: 'nav_attendance' },
+      { to: '/roster', label: 'Shift roster', icon: 'calendar' },
       { to: '/leave', label: 'Leave', icon: 'leaf', badge: 'nav_leave' },
       { to: '/payroll', label: 'Payroll', icon: 'banknote', badge: 'nav_payroll' },
       { to: '/assets', label: 'Assets', icon: 'laptop' },
     ],
   },
-  { group: 'Admin', items: [{ to: '/settings', label: 'Settings', icon: 'settings', roles: ['hr'] }] },
+  {
+    group: 'Agency',
+    items: [
+      { to: '/clients', label: 'Clients & placements', icon: 'building', roles: ['hr', 'manager'] },
+      { to: '/announcements', label: 'Announcements', icon: 'megaphone', badge: 'nav_announcements' },
+    ],
+  },
+  { group: 'Admin', items: [{ to: '/settings', label: 'Settings', icon: 'settings', roles: ['hr'] }, { to: '/integrations', label: 'Integrations & API', icon: 'key', roles: ['hr'] }] },
 ];
 
 export default function Layout() {

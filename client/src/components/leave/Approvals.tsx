@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { api } from '../../lib/api';
+import { useCounts } from '../../lib/notifications';
 import { fmtDateTime } from '../../lib/format';
 import { Badge, Button, Card, EmptyState, Input, Spinner, StatusBadge, useFetch, useToast } from '../ui';
 import { DateRange, RequestDetailModal } from './RequestsTable';
-import { LeaveRequest, TypeChip, fmtDays } from './shared';
+import { ApprovalTrail, LeaveRequest, TypeChip, fmtDays } from './shared';
 
 export function Approvals({ onChanged }: { onChanged?: () => void }) {
   const toast = useToast();
+  const { refreshCounts } = useCounts();
   const list = useFetch<LeaveRequest[]>(() => api.get('/api/leave/approvals/pending'), []);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -17,6 +19,7 @@ export function Approvals({ onChanged }: { onChanged?: () => void }) {
       await api.post(`/api/leave/requests/${r.id}/review`, { decision, note: notes[r.id] || null });
       toast.success(decision === 'approve' ? `Approved ${r.employee_name}'s ${r.leave_type_name}` : `Rejected ${r.employee_name}'s request`);
       list.reload();
+      refreshCounts();
       onChanged?.();
     } catch (err) {
       toast.error(err);
@@ -50,7 +53,10 @@ export function Approvals({ onChanged }: { onChanged?: () => void }) {
               <div className="mt" style={{ marginTop: 8 }}><DateRange r={r} /> · <strong>{fmtDays(r.days)}</strong></div>
             )}
             <p className="muted" style={{ margin: '8px 0' }}>{r.correction?.reason || r.reason || <em>No reason given</em>}</p>
-            <div className="muted" style={{ fontSize: 12 }}>Applied {fmtDateTime(r.created_at)} · <button type="button" className="btn btn-link" onClick={() => setOpen(r.id)}>history</button></div>
+            <div className="row between" style={{ fontSize: 12 }}>
+              <span className="muted">Applied {fmtDateTime(r.created_at)} · <button type="button" className="btn btn-link" onClick={() => setOpen(r.id)}>history</button></span>
+              <ApprovalTrail status={r.status} approverName={r.approver_name} />
+            </div>
             <div className="row mt" style={{ marginTop: 10 }}>
               <Input placeholder="Note to employee (optional)" value={notes[r.id] || ''} onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })} style={{ flex: 1 }} data-testid="leave-review-note" />
               <Button variant="danger" size="sm" loading={busy === `${r.id}-reject`} disabled={!!busy} onClick={() => decide(r, 'reject')} data-testid="leave-reject">Reject</Button>

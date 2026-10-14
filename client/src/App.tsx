@@ -18,6 +18,13 @@ import Assets from './pages/Assets';
 import Journey from './pages/Journey';
 import Settings from './pages/Settings';
 import Recruitment from './pages/Recruitment';
+import Letters from './pages/Letters';
+import Performance from './pages/Performance';
+import Clients from './pages/Clients';
+import Announcements from './pages/Announcements';
+import Roster from './pages/Roster';
+import Integrations from './pages/Integrations';
+import Careers from './pages/Careers';
 import { Spinner } from './components/ui';
 
 function RequireAuth({ children, roles }: { children: React.ReactElement; roles?: string[] }) {
@@ -33,6 +40,7 @@ export default function App() {
   const { user, loading } = useAuth();
   return (
     <Routes>
+      <Route path="/careers/*" element={<Careers />} />
       <Route path="/login" element={loading ? <div className="fullscreen-center"><Spinner /></div> : user ? <Navigate to="/" replace /> : <Login />} />
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route index element={<Dashboard />} />
@@ -42,6 +50,12 @@ export default function App() {
         <Route path="org-tree" element={<OrgTree />} />
         <Route path="jobs/*" element={<Jobs />} />
         <Route path="recruitment/*" element={<RequireAuth roles={['hr', 'manager']}><Recruitment /></RequireAuth>} />
+        <Route path="letters/*" element={<Letters />} />
+        <Route path="performance/*" element={<Performance />} />
+        <Route path="clients/*" element={<RequireAuth roles={['hr', 'manager']}><Clients /></RequireAuth>} />
+        <Route path="announcements/*" element={<Announcements />} />
+        <Route path="roster/*" element={<Roster />} />
+        <Route path="integrations/*" element={<RequireAuth roles={['hr']}><Integrations /></RequireAuth>} />
         <Route path="documents/*" element={<Documents />} />
         <Route path="payroll/*" element={<Payroll />} />
         <Route path="attendance/*" element={<Attendance />} />

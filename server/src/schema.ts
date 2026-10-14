@@ -580,7 +580,176 @@ CREATE TABLE IF NOT EXISTS candidate_events (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS letter_templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  code TEXT NOT NULL UNIQUE,
+  category TEXT NOT NULL DEFAULT 'general',   -- offer | appointment | experience | relieving | salary | address | general
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,                          -- text with {{placeholders}}; blank line = paragraph
+  self_service INTEGER NOT NULL DEFAULT 1,     -- employees may request it
+  requires_approval INTEGER NOT NULL DEFAULT 1,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS letters (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  template_id INTEGER REFERENCES letter_templates(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  body_rendered TEXT,
+  variables TEXT NOT NULL DEFAULT '{}',        -- JSON extra placeholders supplied at generation
+  pdf_stored_name TEXT,
+  document_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested','approved','generated','rejected')),
+  reason TEXT,
+  requested_by INTEGER,
+  approved_by INTEGER,
+  approved_at TEXT,
+  generated_at TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS review_cycles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  period_start TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+  due_date TEXT,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','open','closed')),
+  competencies TEXT NOT NULL DEFAULT '[]',     -- JSON [{key,label,description,weight}]
+  rating_scale INTEGER NOT NULL DEFAULT 5,
+  created_by INTEGER,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cycle_id INTEGER NOT NULL REFERENCES review_cycles(id) ON DELETE CASCADE,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  reviewer_employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  self_ratings TEXT NOT NULL DEFAULT '{}',     -- JSON {competencyKey: number}
+  manager_ratings TEXT NOT NULL DEFAULT '{}',
+  self_comments TEXT,
+  manager_comments TEXT,
+  goals TEXT NOT NULL DEFAULT '[]',            -- JSON [{title, weight, progress, status, notes}]
+  final_rating REAL,
+  status TEXT NOT NULL DEFAULT 'pending_self' CHECK (status IN ('pending_self','pending_manager','completed','acknowledged')),
+  self_submitted_at TEXT,
+  completed_at TEXT,
+  acknowledged_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (cycle_id, employee_id)
+);
+
+CREATE TABLE IF NOT EXISTS clients (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  code TEXT UNIQUE,
+  industry TEXT,
+  website TEXT,
+  address TEXT,
+  contact_name TEXT,
+  contact_email TEXT,
+  contact_phone TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('prospect','active','inactive')),
+  billing_currency TEXT NOT NULL DEFAULT 'INR',
+  payment_terms_days INTEGER NOT NULL DEFAULT 30,
+  notes TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS placements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  candidate_id INTEGER REFERENCES candidates(id) ON DELETE SET NULL,
+  role_title TEXT NOT NULL,
+  start_date TEXT,
+  end_date TEXT,
+  bill_rate REAL,
+  pay_rate REAL,
+  rate_unit TEXT NOT NULL DEFAULT 'month' CHECK (rate_unit IN ('hour','day','month')),
+  placement_fee REAL,
+  status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed','active','completed','terminated')),
+  location TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  audience TEXT NOT NULL DEFAULT 'all',        -- all | managers | hr | department:<id>
+  pinned INTEGER NOT NULL DEFAULT 0,
+  publish_at TEXT,
+  expires_at TEXT,
+  created_by INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS announcement_reads (
+  announcement_id INTEGER NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  read_at TEXT NOT NULL,
+  PRIMARY KEY (announcement_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS shift_assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  shift_id INTEGER REFERENCES shifts(id) ON DELETE SET NULL,   -- NULL = day off
+  note TEXT,
+  created_by INTEGER,
+  created_at TEXT NOT NULL,
+  UNIQUE (employee_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  key_prefix TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+  scopes TEXT NOT NULL DEFAULT '["candidates:write"]',   -- JSON string[]
+  active INTEGER NOT NULL DEFAULT 1,
+  last_used_at TEXT,
+  created_by INTEGER,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS webhooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  events TEXT NOT NULL DEFAULT '["candidate.created","candidate.stage_changed","employee.hired"]',   -- JSON string[]
+  secret TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  webhook_id INTEGER NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  event TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  status_code INTEGER,
+  ok INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  attempted_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_candidates_vacancy ON candidates(vacancy_id, stage);
+CREATE INDEX IF NOT EXISTS idx_reviews_cycle ON reviews(cycle_id, employee_id);
+CREATE INDEX IF NOT EXISTS idx_placements_client ON placements(client_id, status);
+CREATE INDEX IF NOT EXISTS idx_shift_assign ON shift_assignments(date, employee_id);
 CREATE INDEX IF NOT EXISTS idx_travel_emp ON travel_logs(employee_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_compoff_emp ON comp_off_credits(employee_id, status);
 `;
