@@ -73,11 +73,16 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     d.drive();
   }, [steps, location.pathname]);
 
-  // Reset on navigation so a stale tour never shows for a new page.
+  // Reset on navigation so a stale tour never shows for a new page. Skipped on the first render:
+  // child pages register their steps before this effect runs, and clearing here would drop them.
+  const lastPath = useRef<string | null>(null);
   useEffect(() => {
-    driverRef.current?.destroy();
-    setSteps([]);
-    setPageName('');
+    if (lastPath.current !== null && lastPath.current !== location.pathname) {
+      driverRef.current?.destroy();
+      setSteps([]);
+      setPageName('');
+    }
+    lastPath.current = location.pathname;
   }, [location.pathname]);
 
   const value = useMemo(() => ({ steps, pageName, register, start, running }), [steps, pageName, register, start, running]);

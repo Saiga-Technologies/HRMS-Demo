@@ -54,7 +54,9 @@ export default function Attendance() {
     ].filter((t) => t.show),
     [isHr, isManager, hasEmployee, counts.attendance_appeals, counts.my_appeals_pending],
   );
-  const requested = (params.get('tab') === 'corrections' ? 'appeals' : params.get('tab')) as TabKey | null;
+  const ALIASES: Record<string, string> = { corrections: 'appeals', daily: 'roster', report: 'reports', monthly: 'summary' };
+  const rawTab = params.get('tab');
+  const requested = (rawTab && ALIASES[rawTab] ? ALIASES[rawTab] : rawTab) as TabKey | null;
   const tab: TabKey = requested && TAB_KEYS.includes(requested) && tabs.some((t) => t.key === requested) ? requested : 'me';
   const setTab = (k: string) => setParams(k === 'me' ? {} : { tab: k }, { replace: true });
 

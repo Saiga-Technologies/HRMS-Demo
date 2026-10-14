@@ -44,7 +44,7 @@ test.describe('assets', () => {
     await m.getByTestId('asset-save').click();
     await expectToast(page, 'success');
     await page.getByRole('cell', { name: /Logitech MX Keys/ }).click();
-    await page.getByRole('button', { name: /^Assign/ }).first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Assign', exact: true }).first().click();
     const am = page.getByRole('dialog').last();
     await am.getByLabel(/Employee/).selectOption({ label: 'Karthik Raj (EMP0006) · Platform' });
     await am.getByTestId('asset-assign-submit').click();
