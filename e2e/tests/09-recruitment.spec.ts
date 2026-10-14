@@ -109,6 +109,8 @@ test.describe('recruitment', () => {
     await page.getByTestId('candidate-card').first().click();
     await expect(page.getByTestId('candidate-detail')).toBeVisible();
     await expect(page.getByTestId('candidate-hire')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('candidate-detail')).toBeHidden();
     await page.getByTestId('user-menu').click();
     await page.getByTestId('logout').click();
     await login(page, USERS.employee);
