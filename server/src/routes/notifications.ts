@@ -4,6 +4,7 @@ import { requireAuth } from '../auth.js';
 import { approvableEmployeeIds } from '../approvers.js';
 import { today } from '../util.js';
 import { documentStatus } from './documents.js';
+import { visibilityClause, windowClause } from './announcements.js';
 
 const r = Router();
 
@@ -49,7 +50,10 @@ r.get('/counts', requireAuth, (req, res) => {
   counts.my_letters_ready = n(`SELECT COUNT(*) AS n FROM letters WHERE status = 'generated'${mine('employee_id')}`);
   counts.reviews_pending_self = n(`SELECT COUNT(*) AS n FROM reviews r JOIN review_cycles c ON c.id = r.cycle_id WHERE c.status = 'open' AND r.status = 'pending_self'${mine('r.employee_id')}`);
   counts.reviews_pending_manager = n(`SELECT COUNT(*) AS n FROM reviews r JOIN review_cycles c ON c.id = r.cycle_id WHERE c.status = 'open' AND r.status = 'pending_manager'${isHr ? '' : mine('r.reviewer_employee_id')}`);
-  counts.announcements_unread = n(`SELECT COUNT(*) AS n FROM announcements a WHERE (a.publish_at IS NULL OR a.publish_at <= ?) AND (a.expires_at IS NULL OR a.expires_at >= ?) AND NOT EXISTS (SELECT 1 FROM announcement_reads ar WHERE ar.announcement_id = a.id AND ar.user_id = ?)`, [new Date().toISOString(), today(), user.id]);
+  // Same audience + publish window as the feed (GET /api/announcements), so "Mark all read" clears it.
+  const vis = visibilityClause(req);
+  const nowTs = new Date().toISOString();
+  counts.announcements_unread = n(`SELECT COUNT(*) AS n FROM announcements a WHERE ${vis.sql} AND ${windowClause} AND NOT EXISTS (SELECT 1 FROM announcement_reads ar WHERE ar.announcement_id = a.id AND ar.user_id = ?)`, [...vis.params, nowTs, nowTs, user.id]);
   // Roll-ups used by the sidebar
   counts.nav_attendance = counts.attendance_appeals + counts.comp_off_approvals + counts.my_comp_off_detected;
   counts.nav_leave = counts.leave_approvals + counts.my_leave_pending;

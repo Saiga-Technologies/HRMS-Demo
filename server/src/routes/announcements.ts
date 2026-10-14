@@ -36,7 +36,7 @@ function decorate(row: any) {
 }
 
 /** SQL fragment + params restricting rows to those the signed-in user may see (HR sees every audience). */
-function visibilityClause(req: Request): { sql: string; params: any[] } {
+export function visibilityClause(req: Request): { sql: string; params: any[] } {
   const user = req.user!;
   const dept = user.employee_id ? get<any>('SELECT department_id FROM employees WHERE id = ?', [user.employee_id])?.department_id ?? null : null;
   const audiences = ['all'];
@@ -48,7 +48,7 @@ function visibilityClause(req: Request): { sql: string; params: any[] } {
   if (user.role === 'hr') parts.push("a.audience LIKE 'department:%'");
   return { sql: `(${parts.join(' OR ')})`, params };
 }
-const windowClause = '(a.publish_at IS NULL OR a.publish_at <= ?) AND (a.expires_at IS NULL OR a.expires_at >= ?)';
+export const windowClause = '(a.publish_at IS NULL OR a.publish_at <= ?) AND (a.expires_at IS NULL OR a.expires_at >= ?)';
 
 /** Demo notices, inserted the first time the board is read while empty. */
 export function ensureAnnouncementDefaults() {

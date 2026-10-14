@@ -96,7 +96,7 @@ export function createApp() {
   const clientDist = path.resolve(here, '..', '..', 'client', 'dist');
   if (fs.existsSync(clientDist)) {
     app.use(express.static(clientDist, { index: false, maxAge: '1h' }));
-    app.get(/.*/, (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+    app.get(/.*/, (_req, res) => res.sendFile('index.html', { root: clientDist }));
   }
 
   // Error handler.
