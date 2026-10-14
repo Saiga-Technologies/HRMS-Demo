@@ -129,8 +129,8 @@ describe('leave management', () => {
   it('enforces balance limits, notice and half days; HR can auto-approve and adjust', async () => {
     const e = await employee();
     const types = (await request(app).get('/api/leave/types').set(auth(e))).body;
-    const el = types.find((t: any) => t.code === 'EL'); // 7 days notice
-    const short = await request(app).post('/api/leave/requests').set(auth(e)).send({ leave_type_id: el.id, start_date: fut(1), end_date: fut(1) });
+    const ml = types.find((t: any) => t.code === 'ML'); // 30 days notice
+    const short = await request(app).post('/api/leave/requests').set(auth(e)).send({ leave_type_id: ml.id, start_date: fut(1), end_date: fut(1) });
     expect(short.status).toBe(400);
     expect(short.body.error).toMatch(/notice/);
     const cl = types.find((t: any) => t.code === 'CL');

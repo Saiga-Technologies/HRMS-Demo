@@ -100,7 +100,7 @@ export function seed() {
     const lt = (name: string, code: string, quota: number, paid: number, cf: number, maxCf: number, doc: number, notice: number, color: string) => insert('leave_types', { name, code, annual_quota: quota, paid, carry_forward: cf, max_carry_forward: maxCf, requires_document: doc, min_notice_days: notice, allow_half_day: 1, color, active: 1 });
     const ltCasual = lt('Casual Leave', 'CL', 12, 1, 0, 0, 0, 1, '#2563eb');
     const ltSick = lt('Sick Leave', 'SL', 10, 1, 0, 0, 1, 0, '#dc2626');
-    const ltEarned = lt('Earned Leave', 'EL', 18, 1, 1, 30, 0, 7, '#16a34a');
+    const ltEarned = lt('Comp Off', 'CO', 0, 1, 0, 0, 0, 1, '#16a34a'); // earned by working on weekly offs / holidays (see leave settings)
     lt('Unpaid Leave', 'LWP', 365, 0, 0, 0, 0, 0, '#6b7280');
     lt('Maternity Leave', 'ML', 182, 1, 0, 0, 1, 30, '#db2777');
 
@@ -165,7 +165,7 @@ export function seed() {
     const year = new Date().getFullYear();
     const emps = all<any>('SELECT id FROM employees');
     const types = all<any>('SELECT * FROM leave_types');
-    for (const e of emps) for (const t of types) insert('leave_balances', { employee_id: e.id, leave_type_id: t.id, year, allocated: t.annual_quota, carried: t.code === 'EL' ? 4 : 0, adjusted: 0, used: 0 });
+    for (const e of emps) for (const t of types) insert('leave_balances', { employee_id: e.id, leave_type_id: t.id, year, allocated: t.annual_quota, carried: 0, adjusted: t.code === 'CO' ? 2 : 0, used: 0 });
     const leave = (employee_id: number, type: number, start: string, end: string, days: number, status: string, reason: string) => {
       const id = insert('leave_requests', { employee_id, leave_type_id: type, start_date: start, end_date: end, days, reason, status, requested_by: null, reviewed_by: status === 'approved' ? 1 : null, reviewed_at: status === 'approved' ? now : null, created_at: now, updated_at: now });
       insert('leave_history', { leave_request_id: id, action: 'applied', by_user: null, note: reason, created_at: now });
@@ -173,8 +173,8 @@ export function seed() {
     };
     leave(se1, ltCasual, addDays(today(), 5), addDays(today(), 6), 2, 'pending', 'Family function');
     leave(ae, ltSick, addDays(today(), -3), addDays(today(), -2), 2, 'approved', 'Fever');
-    leave(acc, ltEarned, addDays(today(), 12), addDays(today(), 16), 5, 'pending', 'Vacation');
-    leave(sse, ltEarned, addDays(today(), -30), addDays(today(), -27), 4, 'approved', 'Trip');
+    leave(acc, ltEarned, addDays(today(), 12), addDays(today(), 12), 1, 'pending', 'Comp off for weekend release work');
+    leave(sse, ltEarned, addDays(today(), -30), addDays(today(), -30), 1, 'approved', 'Comp off');
 
     // Attendance from the start of the month (at least the last 14 days) up to yesterday for everyone
     const firstOfMonth = today().slice(0, 8) + '01';
@@ -183,7 +183,14 @@ export function seed() {
       const d = addDays(today(), -i);
       if (get('SELECT 1 FROM holidays WHERE date = ?', [d])) continue;
       const wd = new Date(d + 'T00:00:00Z').getUTCDay();
-      if (wd === 0 || wd === 6) continue;
+      if (wd === 0 || wd === 6) {
+        // One Saturday of release work for two engineers: feeds the comp-off auto-detection demo.
+        if (wd === 6 && i <= 8) for (const e of [se1, sse]) {
+          const inTs = `${d}T04:30:00.000Z`, outTs = `${d}T13:45:00.000Z`;
+          insert('attendance_records', { employee_id: e, date: d, punch_in_at: inTs, punch_in_lat: 12.9716, punch_in_lng: 77.5946, punch_in_location_id: hq, punch_in_within_fence: 1, punch_in_distance_m: 10, punch_out_at: outTs, punch_out_lat: 12.9716, punch_out_lng: 77.5946, punch_out_location_id: hq, punch_out_within_fence: 1, punch_out_distance_m: 10, status: 'present', work_minutes: 555, break_minutes: 0, overtime_minutes: 15, late_minutes: 0, source: 'punch', notes: 'Weekend release support', created_at: now, updated_at: now });
+        }
+        continue;
+      }
       for (const e of emps) {
         if (e.id === ae && d >= addDays(today(), -3)) continue; // on sick leave
         const lateBy = e.id === se1 && i % 3 === 0 ? 25 : 0;

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fmtDate, fmtDateTime } from '../lib/format';
-import { Badge, Button, ExpiryDot, Field, Input, KeyValue, Modal, Select, StatusBadge, Textarea, useConfirm, useFetch, useForm, useToast } from './ui';
+import { Badge, Button, ExpiryDot, Field, Input, KeyValue, Modal, Select, StatusBadge, Textarea, useConfirm, useFetch, useForm, useToast, FileInput } from './ui';
 
 /* ------------------------------------------------------------------ */
 /* Shared document types & helpers                                     */
@@ -205,7 +205,6 @@ export function DocumentUploadModal({ open, employeeId, employees, onClose, onUp
   const types = useFetch<DocumentType[]>(() => api.get('/api/documents/types'), []);
   const [file, setFile] = useState<File | null>(null);
   const [fileKey, setFileKey] = useState(0);
-  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const blank = () => ({ employee_id: employeeId ? String(employeeId) : '', document_type_id: '', title: '', issued_date: '', expiry_date: '', document_number: '', notes: '' });
   const f = useForm(blank());
@@ -276,16 +275,15 @@ export function DocumentUploadModal({ open, employeeId, employees, onClose, onUp
           </Select>
         </Field>
         <div className="span-2">
-          <label
-            className={`dropzone ${dragging || file ? 'active' : ''}`}
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); const dropped = e.dataTransfer.files?.[0]; if (dropped) setFile(dropped); }}>
-            <div>{file ? <strong>{file.name}</strong> : 'Drag a file here or click to choose'}</div>
-            <div className="help">{file ? `${fmtBytes(file.size)} · ${FORMAT_LABEL[fileFormat || ''] || 'Unsupported format'}` : `Accepted: ${allowed.map((x) => FORMAT_LABEL[x]).join(', ')}`}</div>
-            <input key={fileKey} type="file" accept={accept} data-testid="document-file" style={{ marginTop: 8 }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
-            {fileError ? <div className="field-error" style={{ marginTop: 6 }}>{fileError}</div> : null}
-          </label>
+          <FileInput
+            key={fileKey}
+            accept={accept}
+            file={file}
+            testId="document-file"
+            onChange={(files) => setFile(files[0] || null)}
+            hint={file ? `${fmtBytes(file.size)} · ${FORMAT_LABEL[fileFormat || ''] || 'Unsupported format'}` : `Accepted: ${allowed.map((x) => FORMAT_LABEL[x]).join(', ')}${type ? ` · max ${type.max_size_mb} MB` : ''}`}
+          />
+          {fileError ? <div className="field-error" style={{ marginTop: 6 }}>{fileError}</div> : null}
         </div>
         <Field label="Title" hint="Defaults to the document type name" className="span-2"><Input {...f.bind('title')} placeholder={type?.name || 'e.g. Passport'} data-testid="document-title" /></Field>
         <Field label="Issued date"><Input type="date" {...f.bind('issued_date')} /></Field>

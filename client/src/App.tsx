@@ -17,6 +17,7 @@ import Leave from './pages/Leave';
 import Assets from './pages/Assets';
 import Journey from './pages/Journey';
 import Settings from './pages/Settings';
+import Recruitment from './pages/Recruitment';
 import { Spinner } from './components/ui';
 
 function RequireAuth({ children, roles }: { children: React.ReactElement; roles?: string[] }) {
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="org" element={<OrgStructure />} />
         <Route path="org-tree" element={<OrgTree />} />
         <Route path="jobs/*" element={<Jobs />} />
+        <Route path="recruitment/*" element={<RequireAuth roles={['hr', 'manager']}><Recruitment /></RequireAuth>} />
         <Route path="documents/*" element={<Documents />} />
         <Route path="payroll/*" element={<Payroll />} />
         <Route path="attendance/*" element={<Attendance />} />

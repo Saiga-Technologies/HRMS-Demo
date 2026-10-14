@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Icon } from './Icons';
 
 /* ------------------------------------------------------------------ */
 /* Toasts                                                              */
@@ -126,11 +127,14 @@ export function Card({ title, actions, children, className = '', tour, padded = 
     </section>
   );
 }
-export function Stat({ label, value, hint, color, tour, onClick }: { label: string; value: React.ReactNode; hint?: React.ReactNode; color?: string; tour?: string; onClick?: () => void }) {
+export function Stat({ label, value, hint, color, tour, onClick, icon, trend }: { label: string; value: React.ReactNode; hint?: React.ReactNode; color?: string; tour?: string; onClick?: () => void; icon?: string; trend?: React.ReactNode }) {
   return (
-    <div className={`stat ${onClick ? 'clickable' : ''}`} data-tour={tour} onClick={onClick} style={color ? { borderTopColor: color } : undefined}>
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
+    <div className={`stat ${onClick ? 'clickable' : ''}`} data-tour={tour} onClick={onClick} style={color ? { borderTopColor: color } : undefined} role={onClick ? 'button' : undefined}>
+      <div className="stat-row">
+        <div className="stat-label">{label}</div>
+        {icon ? <span className="stat-icon" style={color ? { color, background: `color-mix(in srgb, ${color} 14%, var(--surface))` } : undefined}><Icon name={icon} size={18} /></span> : null}
+      </div>
+      <div className="stat-row"><div className="stat-value">{value}</div>{trend}</div>
       {hint ? <div className="stat-hint">{hint}</div> : null}
     </div>
   );
@@ -180,17 +184,76 @@ export function Spinner({ label = 'Loading…' }: { label?: string }) {
     </div>
   );
 }
-export function Tabs({ tabs, value, onChange, tour }: { tabs: { key: string; label: React.ReactNode; count?: number }[]; value: string; onChange: (k: string) => void; tour?: string }) {
+/**
+ * Tabs. `count` shows a neutral total (e.g. number of rows); `badge` shows a red unread-style
+ * counter for items that need the user's attention (pending approvals, new candidates…).
+ */
+export function Tabs({ tabs, value, onChange, tour }: { tabs: { key: string; label: React.ReactNode; count?: number; badge?: number; icon?: string }[]; value: string; onChange: (k: string) => void; tour?: string }) {
   return (
     <div className="tabs" role="tablist" data-tour={tour}>
       {tabs.map((t) => (
-        <button key={t.key} role="tab" aria-selected={value === t.key} className={`tab ${value === t.key ? 'active' : ''}`} onClick={() => onChange(t.key)} data-tab={t.key}>
+        <button key={t.key} role="tab" aria-selected={value === t.key} className={`tab ${value === t.key ? 'active' : ''}`} onClick={() => onChange(t.key)} data-tab={t.key} data-testid={`tab-${t.key}`}>
+          {t.icon ? <Icon name={t.icon} size={15} /> : null}
           {t.label}
+          {t.badge ? <span className="tab-badge" aria-label={`${t.badge} pending`}>{t.badge > 99 ? '99+' : t.badge}</span> : null}
           {t.count !== undefined ? <span className="tab-count">{t.count}</span> : null}
         </button>
       ))}
     </div>
   );
+}
+
+/** Styled file picker with drag & drop. Use instead of a bare <input type="file">. */
+export function FileInput({ accept, onChange, file, hint, label = 'Drag a file here or click to choose', multiple, testId = 'file-input', disabled }: { accept?: string; onChange: (files: File[]) => void; file?: File | File[] | null; hint?: React.ReactNode; label?: React.ReactNode; multiple?: boolean; testId?: string; disabled?: boolean }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [active, setActive] = useState(false);
+  const files = Array.isArray(file) ? file : file ? [file] : [];
+  const pick = (list: FileList | null) => { if (!list) return; onChange(Array.from(list)); };
+  return (
+    <div className="file-input">
+      <input ref={ref} type="file" accept={accept} multiple={multiple} data-testid={testId} disabled={disabled} onChange={(e) => { pick(e.target.files); e.target.value = ''; }} />
+      <div
+        className={`file-drop ${active ? 'active' : ''}`}
+        role="button" tabIndex={0}
+        onClick={() => !disabled && ref.current?.click()}
+        onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !disabled) { e.preventDefault(); ref.current?.click(); } }}
+        onDragOver={(e) => { e.preventDefault(); if (!disabled) setActive(true); }}
+        onDragLeave={() => setActive(false)}
+        onDrop={(e) => { e.preventDefault(); setActive(false); if (!disabled) pick(e.dataTransfer.files); }}
+      >
+        <span className="file-icon"><Icon name="upload" size={20} /></span>
+        <strong>{label}</strong>
+        {hint ? <span>{hint}</span> : null}
+        <Button type="button" size="sm" variant="primary" onClick={(e) => { e.stopPropagation(); ref.current?.click(); }} disabled={disabled}>Choose file{multiple ? 's' : ''}</Button>
+      </div>
+      {files.map((f) => (
+        <div className="file-chip" key={f.name + f.size}>
+          <Icon name="file" size={16} />
+          <span className="name" title={f.name}>{f.name}</span>
+          <span className="meta">{(f.size / 1024).toFixed(0)} KB</span>
+          <button type="button" className="btn btn-ghost btn-sm" aria-label="Remove file" onClick={() => onChange(files.filter((x) => x !== f))}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Downloads a Blob/URL as a file (used by CSV/PDF export buttons). */
+export async function downloadUrl(url: string, filename: string) {
+  const res = await fetch(url, { credentials: 'same-origin' });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { msg = (await res.json()).error || msg; } catch { /* ignore */ }
+    throw new Error(msg || 'Download failed');
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
 /* ------------------------------------------------------------------ */

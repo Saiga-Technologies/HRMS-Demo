@@ -492,3 +492,107 @@ CREATE INDEX IF NOT EXISTS idx_leave_requests_emp ON leave_requests(employee_id,
 CREATE INDEX IF NOT EXISTS idx_payslips_run ON payslips(run_id);
 CREATE INDEX IF NOT EXISTS idx_journey_emp ON journey_stages(employee_id, sort_order);
 `;
+
+/** Phase 2 tables. Kept separate so `migrate()` can also add new columns to existing tables. */
+export const SCHEMA_V2 = `
+CREATE TABLE IF NOT EXISTS travel_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  destination TEXT NOT NULL,
+  purpose TEXT,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  start_lat REAL, start_lng REAL,
+  end_lat REAL, end_lng REAL,
+  path TEXT NOT NULL DEFAULT '[]',          -- JSON [{lat,lng,at}] sampled points
+  distance_km REAL NOT NULL DEFAULT 0,
+  duration_minutes INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','completed','cancelled')),
+  notes TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS comp_off_credits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  worked_date TEXT NOT NULL,
+  reason TEXT NOT NULL,                     -- weekly_off | holiday | extra_hours
+  work_minutes INTEGER NOT NULL DEFAULT 0,
+  days REAL NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'detected' CHECK (status IN ('detected','pending','approved','rejected','expired')),
+  approver_employee_id INTEGER,
+  requested_by INTEGER,
+  reviewed_by INTEGER,
+  reviewed_at TEXT,
+  review_note TEXT,
+  expires_on TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE (employee_id, worked_date)
+);
+
+CREATE TABLE IF NOT EXISTS payslip_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  period TEXT NOT NULL,                     -- 'YYYY-MM'
+  reason TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','fulfilled','rejected')),
+  payslip_id INTEGER,
+  handled_by INTEGER,
+  handled_at TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS candidates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL DEFAULT '',
+  email TEXT,
+  phone TEXT,
+  source TEXT,
+  vacancy_id INTEGER REFERENCES vacancies(id) ON DELETE SET NULL,
+  position_id INTEGER REFERENCES positions(id) ON DELETE SET NULL,
+  cv_original_name TEXT,
+  cv_stored_name TEXT,
+  cv_mime TEXT,
+  cv_text TEXT,
+  parsed TEXT NOT NULL DEFAULT '{}',        -- JSON {skills,experience_years,education,emails,phones,summary}
+  score REAL,
+  score_breakdown TEXT NOT NULL DEFAULT '{}',   -- JSON
+  stage TEXT NOT NULL DEFAULT 'new' CHECK (stage IN ('new','screening','interview','offer','hired','rejected','withdrawn')),
+  rating INTEGER,
+  expected_salary REAL,
+  notice_days INTEGER,
+  notes TEXT,
+  hired_employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  created_by INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS candidate_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  candidate_id INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,                       -- stage_change | note | interview | score | hired
+  note TEXT,
+  data TEXT,                                -- JSON
+  by_user INTEGER,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_candidates_vacancy ON candidates(vacancy_id, stage);
+CREATE INDEX IF NOT EXISTS idx_travel_emp ON travel_logs(employee_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_compoff_emp ON comp_off_credits(employee_id, status);
+`;
+
+/** Columns added to existing tables after the first release: [table, column, DDL]. */
+export const COLUMN_MIGRATIONS: [string, string, string][] = [
+  ['attendance_corrections', 'kind', "TEXT NOT NULL DEFAULT 'correction'"],      // missed_punch_in | missed_punch_out | missed_both | status | correction
+  ['attendance_corrections', 'approver_employee_id', 'INTEGER'],
+  ['attendance_corrections', 'applied_record_id', 'INTEGER'],
+  ['attendance_corrections', 'previous_values', 'TEXT'],                          // JSON snapshot of the record before the correction was applied
+  ['attendance_records', 'correction_id', 'INTEGER'],
+  ['leave_requests', 'approver_employee_id', 'INTEGER'],
+  ['employees', 'candidate_id', 'INTEGER'],
+  ['vacancies', 'hired_count', 'INTEGER NOT NULL DEFAULT 0'],
+];

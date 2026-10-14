@@ -62,7 +62,9 @@ function CompanySettings() {
         <Field label="Address" className="span-2"><Textarea {...f.bind('address')} /></Field>
         <div className="form-section">Branding</div>
         <Field label="Logo initial(s)" hint="Shown in the sidebar and login page"><Input maxLength={3} {...f.bind('logo_text')} /></Field>
-        <Field label="Brand colour"><Input type="color" {...f.bind('brand_color')} /></Field>
+        <Field label="Brand colour" hint="Primary buttons, active navigation, charts"><Input type="color" {...f.bind('brand_color')} data-testid="brand-color" /></Field>
+        <Field label="Accent colour" hint="Secondary highlights and chart series"><Input type="color" {...f.bind('accent_color')} /></Field>
+        <Field label="Default theme" hint="Users can still switch themes from the top bar"><Select {...f.bind('default_theme')}><option value="light">Light</option><option value="dark">Dark</option></Select></Field>
         <div className="form-section">Locale & defaults</div>
         <Field label="Currency code"><Input {...f.bind('currency')} placeholder="INR" /></Field>
         <Field label="Currency symbol"><Input {...f.bind('currency_symbol')} /></Field>

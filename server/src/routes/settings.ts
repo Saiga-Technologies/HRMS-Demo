@@ -19,7 +19,9 @@ export const DEFAULT_COMPANY = {
   date_format: 'DD MMM YYYY',
   week_start: 1,
   logo_text: 'A',
-  brand_color: '#2563eb',
+  brand_color: '#4f46e5',
+  accent_color: '#0ea5a4',
+  default_theme: 'light',
   employee_code_prefix: 'EMP',
   financial_year_start_month: 4,
 };
@@ -61,7 +63,12 @@ export const DEFAULT_ATTENDANCE_SETTINGS = {
   late_mark_after_minutes: 10,
   half_day_below_minutes: 240,
   overtime_after_minutes: 540,
+  standard_work_minutes: 540,
   weekly_offs: [0, 6],
+  appeal_deadline_days: 3,           // missed punch appeals must be raised within N days of the date
+  edit_only_via_appeal: true,        // HR cannot edit records directly; every change goes through an approved appeal
+  travel_tracking_enabled: true,
+  travel_sample_interval_seconds: 60,
 };
 export const DEFAULT_LEAVE_SETTINGS = {
   year_start_month: 1,
@@ -69,6 +76,17 @@ export const DEFAULT_LEAVE_SETTINGS = {
   sandwich_rule: false,
   max_consecutive_days: 30,
   managers_can_approve: true,
+  comp_off: {
+    enabled: true,
+    leave_type_code: 'CO',
+    on_weekly_off: true,
+    on_holiday: true,
+    extra_hours_threshold_minutes: 0,   // 0 = extra hours on normal days do not earn comp off
+    full_day_minutes: 480,
+    half_day_minutes: 240,
+    expiry_days: 90,
+    requires_manager_approval: true,
+  },
 };
 
 const KEYS: Record<string, any> = {
@@ -84,7 +102,7 @@ const KEYS: Record<string, any> = {
 /** Public branding is needed on the login screen before authentication. */
 r.get('/public', (_req, res) => {
   const c = getSetting('company', DEFAULT_COMPANY);
-  res.json({ name: c.name, tagline: c.tagline, logo_text: c.logo_text, brand_color: c.brand_color });
+  res.json({ name: c.name, tagline: c.tagline, logo_text: c.logo_text, brand_color: c.brand_color, accent_color: c.accent_color, default_theme: c.default_theme });
 });
 
 r.get('/', requireAuth, (_req, res) => {

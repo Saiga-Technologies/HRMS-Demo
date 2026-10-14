@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SCHEMA } from './schema.js';
+import { SCHEMA, SCHEMA_V2, COLUMN_MIGRATIONS } from './schema.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // On Vercel (and other serverless hosts) only /tmp is writable, so the demo database and uploads
@@ -21,7 +21,17 @@ export function getDb(): DatabaseSync {
   const file = process.env.HRMS_DB_FILE || path.join(DATA_DIR, 'hrms.sqlite');
   db = new DatabaseSync(file);
   db.exec(SCHEMA);
+  db.exec(SCHEMA_V2);
+  migrateColumns(db);
   return db;
+}
+
+/** Add columns introduced after the first release to databases created before them. */
+function migrateColumns(d: DatabaseSync) {
+  for (const [table, column, ddl] of COLUMN_MIGRATIONS) {
+    const cols = d.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === column)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
 }
 
 export function closeDb() {

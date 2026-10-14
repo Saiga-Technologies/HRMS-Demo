@@ -53,3 +53,16 @@ Rules
 See `server/src/routes/*.ts` — each router is small and readable. All list endpoints return either an
 array or `{ items, total }` (employees, documents, assets, attendance records). All mutations return
 the updated row. Errors are `{ error: string }`.
+
+## Phase 2 additions (read these too)
+
+- **Icons:** `import { Icon } from '../components/Icons'` → `<Icon name="clock" size={16} />`. No emoji in UI. Names: dashboard, users, user, userPlus, sitemap, tree, briefcase, compass, folder, clock, leaf, banknote, laptop, settings, route, sun, moon, menu, pin, chevronLeft/Right/Down, upload, download, search, bell, logout, lock, sparkles, check, x, plus, file, filter, print, mapPin, calendar, trendingUp, alert, info, edit, trash, eye, star, play, stop, award, grid.
+- **Theme:** everything must use CSS variables (`var(--surface)`, `--surface-2`, `--surface-3`, `--border`, `--text`, `--text-2`, `--muted`, `--brand`, `--accent`, `--success/--warning/--danger/--info` and the `*-bg/-ink/-border` variants). Never hard-code `#fff`, `#0f172a` etc. — both light and dark themes must look right (`[data-theme="dark"]`). Test with the moon/sun toggle in the top bar.
+- **File pickers:** `<FileInput accept=".pdf,.docx" file={file} onChange={(files) => setFile(files[0] || null)} hint="Accepted: PDF, DOCX" testId="cv-file" />` from `components/ui.tsx`. Never a bare `<input type="file">`.
+- **Tabs with pending counters:** `tabs={[{ key: 'approvals', label: 'Approvals', badge: counts.leave_approvals, icon: 'check' }]}`. `badge` is the red unread-style counter; `count` is a neutral total.
+- **Counts:** `const { counts, refreshCounts } = useCounts()` from `lib/notifications.tsx` (keys from `server/src/routes/notifications.ts`). Call `refreshCounts()` after any mutation that changes a queue (approve, apply, upload…).
+- **Charts:** `components/charts.tsx` exports `BarChart`, `DonutChart`, `LineChart`, `Sparkline`, `Gauge`, `Heatmap`; all accept `onSelect` for click-through. Use `CHART_COLORS`.
+- **Stat cards:** `<Stat label value icon="users" color="#..." onClick={...} />`.
+- **Downloads:** `downloadUrl('/api/reports/attendance.csv?...', 'attendance.csv')` from `components/ui.tsx` (fetches with the session cookie, triggers a save).
+- **Approvals:** every approval goes through the reporting-manager hierarchy. Server helper `server/src/approvers.ts` (`approverChain`, `defaultApprover`, `canApproveFor`, `approvableEmployeeIds`). Requests store `approver_employee_id`; show "Pending with <name>" (`approver_name`) on request rows using the `.pending-with` class, and the reviewer + timestamp (`reviewer_name`, `reviewed_at`) once decided using `.audit-trail`.
+- **Layout:** `detail-grid` + `Card` for detail pages instead of one long column; `section-title` for small headings; keep key/value rows (`KeyValue`) to ~6 items per card.

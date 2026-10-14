@@ -18,6 +18,11 @@ import leaveRoutes from './routes/leave.js';
 import assetRoutes from './routes/assets.js';
 import journeyRoutes from './routes/journey.js';
 import dashboardRoutes from './routes/dashboard.js';
+import notificationRoutes from './routes/notifications.js';
+import travelRoutes from './routes/travel.js';
+import compoffRoutes from './routes/compoff.js';
+import recruitmentRoutes from './routes/recruitment.js';
+import reportRoutes from './routes/reports.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,6 +70,11 @@ export function createApp() {
   app.use('/api/assets', assetRoutes);
   app.use('/api/journey', journeyRoutes);
   app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/notifications', notificationRoutes);
+  app.use('/api/travel', travelRoutes);
+  app.use('/api/compoff', compoffRoutes);
+  app.use('/api/recruitment', recruitmentRoutes);
+  app.use('/api/reports', reportRoutes);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route' }));
 

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from './api';
+import { useTheme } from './theme';
 
 export type Role = 'hr' | 'manager' | 'employee';
 export interface User {
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [company, setCompany] = useState<Company>({ name: 'HRMS' });
   const [loading, setLoading] = useState(true);
+  const { applyPalette } = useTheme();
 
   const refresh = useCallback(async () => {
     try {
@@ -56,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const pub = await api.get<Company>('/api/settings/public');
       setCompany(pub);
-      if (pub.brand_color) document.documentElement.style.setProperty('--brand', pub.brand_color);
+      applyPalette(pub);
     } catch {
       /* ignore */
     }
@@ -76,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       api.get<Company>('/api/settings/company').then((c) => {
         setCompany((prev) => ({ ...prev, ...c }));
-        if (c.brand_color) document.documentElement.style.setProperty('--brand', c.brand_color);
+        applyPalette(c);
       }).catch(() => {});
     }
   }, [user?.id]);

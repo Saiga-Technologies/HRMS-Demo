@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { all, get, insert, update, run, getSetting, parseJson, parseJsonAll, transaction } from '../db.js';
 import { requireAuth, requireHr, requireRole, canAccessEmployee, visibleEmployeeIds } from '../auth.js';
+import { approverChain, canApproveFor, approvableEmployeeIds, defaultApprover } from '../approvers.js';
 import { badRequest, notFound, forbidden, pick, requireFields, audit, toInt, toNum, nowIso, today, wrap, eachDay, assertDate } from '../util.js';
 import { DEFAULT_LEAVE_SETTINGS, DEFAULT_ATTENDANCE_SETTINGS } from './settings.js';
 
@@ -92,8 +93,10 @@ function overlaps(employeeId: number, start: string, end: string, excludeId?: nu
   if (excludeId) { sql += ' AND id != ?'; params.push(excludeId); }
   return get(sql, params);
 }
-const reqQuery = `SELECT l.*, t.name AS leave_type_name, t.code AS leave_type_code, t.color, t.paid, e.first_name || ' ' || e.last_name AS employee_name, e.employee_code, e.manager_id, d.name AS department_name, u.email AS reviewer_email
-  FROM leave_requests l JOIN leave_types t ON t.id = l.leave_type_id JOIN employees e ON e.id = l.employee_id LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN users u ON u.id = l.reviewed_by`;
+const reqQuery = `SELECT l.*, t.name AS leave_type_name, t.code AS leave_type_code, t.color, t.paid, e.first_name || ' ' || e.last_name AS employee_name, e.employee_code, e.manager_id, d.name AS department_name, u.email AS reviewer_email,
+  ap.first_name || ' ' || ap.last_name AS approver_name, ru.email AS reviewer_email2, re.first_name || ' ' || re.last_name AS reviewer_name
+  FROM leave_requests l JOIN leave_types t ON t.id = l.leave_type_id JOIN employees e ON e.id = l.employee_id LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN users u ON u.id = l.reviewed_by
+  LEFT JOIN employees ap ON ap.id = l.approver_employee_id LEFT JOIN users ru ON ru.id = l.reviewed_by LEFT JOIN employees re ON re.id = ru.employee_id`;
 
 r.get('/requests', requireAuth, (req, res) => {
   const where: string[] = [];
@@ -152,7 +155,7 @@ r.post('/requests', requireAuth, wrap(async (req, res) => {
   if (lt.paid && !settings.allow_negative_balance && bal && bal.available - bal.pending < days) throw badRequest(`Insufficient ${lt.name} balance (${bal.available - bal.pending} available, ${days} requested)`);
   const autoApprove = req.user!.role === 'hr' && req.body.auto_approve;
   const id = transaction(() => {
-    const x = insert('leave_requests', { employee_id: eid, leave_type_id: lt.id, start_date: req.body.start_date, end_date: req.body.end_date, half_day: halfDay, days, reason: req.body.reason || null, status: autoApprove ? 'approved' : 'pending', requested_by: req.user!.id, reviewed_by: autoApprove ? req.user!.id : null, reviewed_at: autoApprove ? nowIso() : null, created_at: nowIso(), updated_at: nowIso() });
+    const x = insert('leave_requests', { employee_id: eid, leave_type_id: lt.id, start_date: req.body.start_date, end_date: req.body.end_date, half_day: halfDay, days, reason: req.body.reason || null, status: autoApprove ? 'approved' : 'pending', requested_by: req.user!.id, approver_employee_id: defaultApprover(eid)?.employee_id ?? null, reviewed_by: autoApprove ? req.user!.id : null, reviewed_at: autoApprove ? nowIso() : null, created_at: nowIso(), updated_at: nowIso() });
     insert('leave_history', { leave_request_id: x, action: autoApprove ? 'approved' : 'applied', by_user: req.user!.id, note: req.body.reason || null, created_at: nowIso() });
     if (autoApprove) applyBalance(eid, lt.id, year, days);
     return x;
@@ -169,7 +172,7 @@ function applyBalance(eid: number, ltId: number, year: number, delta: number) {
 r.post('/requests/:id/review', requireRole('manager'), wrap(async (req, res) => {
   const l = get<any>('SELECT * FROM leave_requests WHERE id = ?', [toInt(req.params.id)]);
   if (!l) throw notFound();
-  if (!canAccessEmployee(req, l.employee_id) || req.user!.employee_id === l.employee_id) throw forbidden('You cannot review your own request');
+  if (!canApproveFor(req, l.employee_id)) throw forbidden('Only the reporting manager hierarchy or HR can review this request');
   const decision = req.body.decision === 'approve' ? 'approved' : req.body.decision === 'reject' ? 'rejected' : null;
   if (!decision) throw badRequest('decision must be approve or reject');
   const year = Number(l.start_date.slice(0, 4));
@@ -238,11 +241,18 @@ r.put('/requests/:id', requireAuth, wrap(async (req, res) => {
   res.json(parseJson(get(`${reqQuery} WHERE l.id = ?`, [l.id]), ['correction']));
 }));
 
-/** Pending approvals visible to the current reviewer. */
+/** Pending approvals visible to the current reviewer: everyone below them in the reporting hierarchy (HR: everyone). */
 r.get('/approvals/pending', requireRole('manager'), (req, res) => {
-  const vis = visibleEmployeeIds(req);
-  const where = vis ? ` AND l.employee_id IN (${vis.filter((i) => i !== req.user!.employee_id).map(() => '?').join(',') || 'NULL'})` : '';
-  res.json(parseJsonAll(all(`${reqQuery} WHERE l.status IN ('pending','correction_pending')${where} ORDER BY l.start_date`, vis ? vis.filter((i) => i !== req.user!.employee_id) : []), ['correction']));
+  const ids = approvableEmployeeIds(req);
+  if (ids && !ids.length) return res.json([]);
+  const where = ids ? ` AND l.employee_id IN (${ids.map(() => '?').join(',')})` : '';
+  res.json(parseJsonAll(all(`${reqQuery} WHERE l.status IN ('pending','correction_pending')${where} ORDER BY l.start_date`, ids ?? []), ['correction']));
+});
+/** The approval chain for an employee (who a request goes to, and who may escalate). */
+r.get('/approvers/:employeeId', requireAuth, (req, res) => {
+  const eid = toInt(req.params.employeeId)!;
+  if (!canAccessEmployee(req, eid)) throw forbidden();
+  res.json({ chain: approverChain(eid), default: defaultApprover(eid) });
 });
 
 export default r;
