@@ -25,26 +25,31 @@ test.describe('attendance', () => {
     await expect(page.getByTestId('punch-out')).toBeDisabled();
   });
 
-  test('employee requests a correction and the manager approves it; HR manages locations', async ({ page }) => {
+  test('employee raises a status appeal and the manager approves it; HR manages locations', async ({ page }) => {
     await login(page, USERS.employee);
-    await page.goto('/attendance?tab=corrections');
-    await page.getByRole('button', { name: /Request correction/i }).first().click();
+    await page.goto('/attendance?tab=appeals');
+    await page.getByTestId('appeal-new').click();
     const m = page.getByRole('dialog');
-    const d = new Date(Date.now() - 4 * 86400000);
+    const d = new Date(Date.now() - 3 * 86400000);
     const date = d.toISOString().slice(0, 10);
-    await m.getByLabel(/^Date/).fill(date);
-    await m.getByLabel(/punch out/i).fill(`${date}T18:30`);
-    await m.getByLabel(/Reason/).fill('Forgot to punch out');
-    await m.getByTestId('correction-submit').click();
-    await expectToast(page, 'success');
+    await m.getByTestId('appeal-kind').selectOption('status');
+    await m.getByTestId('appeal-date').fill(date);
+    await m.getByTestId('appeal-status').selectOption('wfh');
+    await m.getByTestId('appeal-reason').fill('Worked from home with approval');
+    await m.getByTestId('appeal-submit').click();
+    await expectToast(page, 'success', /pending with Meera Iyer/);
+    await expect(page.getByText('Worked from home with approval').first()).toBeVisible();
+    await expect(page.locator('.pending-with', { hasText: 'Meera Iyer' }).first()).toBeVisible();
     await page.getByTestId('user-menu').click();
     await page.getByTestId('logout').click();
 
     await login(page, USERS.manager);
-    await page.goto('/attendance?tab=corrections');
-    await expect(page.getByText('Forgot to punch out').first()).toBeVisible();
-    await page.getByTestId('correction-review').first().click();
-    await page.getByTestId('correction-approve').click();
+    await page.goto('/attendance?tab=appeals');
+    const row = page.locator('tr', { hasText: 'Worked from home with approval' });
+    await expect(row).toBeVisible();
+    await row.getByTestId('appeal-review').click();
+    await expect(page.getByTestId('appeal-compare')).toBeVisible();
+    await page.getByTestId('appeal-approve').click();
     await expectToast(page, 'success');
     await page.getByTestId('user-menu').click();
     await page.getByTestId('logout').click();
