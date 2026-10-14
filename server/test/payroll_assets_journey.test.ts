@@ -1,5 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { app, request, hr, manager, employee, auth, cleanup } from './helpers.js';
+import { today as companyToday } from '../src/util.js';
 
 afterAll(cleanup);
 
@@ -21,7 +22,7 @@ describe('payroll', () => {
   });
   it('runs a full payroll cycle: draft -> processed -> approved -> paid with adjustments and LOP', async () => {
     const t = await hr();
-    const period = new Date().toISOString().slice(0, 7);
+    const period = companyToday().slice(0, 7);
     const adj = await request(app).post('/api/payroll/adjustments').set(auth(t)).send({ employee_id: 6, period, type: 'bonus', amount: 5000, note: 'Spot bonus' });
     expect(adj.status).toBe(201);
     const run = await request(app).post('/api/payroll/runs').set(auth(t)).send({ period });

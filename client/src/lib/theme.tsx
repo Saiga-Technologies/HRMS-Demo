@@ -28,8 +28,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   /** Company palette from settings: brand + accent colours and the default theme for users who never chose one. */
   const applyPalette = useCallback((p: { brand_color?: string; accent_color?: string; default_theme?: string }) => {
     const root = document.documentElement.style;
-    if (p.brand_color) root.setProperty('--brand', p.brand_color);
-    if (p.accent_color) root.setProperty('--accent', p.accent_color);
+    if (p.brand_color) root.setProperty('--brand-base', p.brand_color);
+    if (p.accent_color) root.setProperty('--accent-base', p.accent_color);
     if (!explicit && (p.default_theme === 'dark' || p.default_theme === 'light')) setThemeState(p.default_theme);
   }, [explicit]);
   const value = useMemo(() => ({ theme, setTheme, toggle, applyPalette }), [theme, setTheme, toggle, applyPalette]);

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour } from '../lib/tour';
+import { DeptIcon } from '../components/DeptBadge';
 import { Avatar, Button, Card, Checkbox, EmptyState, Field, Modal, PageHeader, Pill, SearchInput, Select, Spinner, useFetch, useToast } from '../components/ui';
 
 /* ------------------------------------------------------------------ */
@@ -11,7 +12,7 @@ import { Avatar, Button, Card, Checkbox, EmptyState, Field, Modal, PageHeader, P
 type Mode = 'reporting' | 'department';
 interface EmpNode { type: 'employee'; id: number; employee_code: string; first_name: string; last_name: string; email: string; photo_path?: string | null; manager_id?: number | null; department_id?: number | null; position_id?: number | null; status: string; department_name?: string | null; department_color?: string | null; position_title?: string | null; children?: EmpNode[] }
 interface PosNode { type: 'position'; id: number; title: string; code?: string | null; department_id?: number | null; headcount: number; level: number; employees: EmpNode[] }
-interface DeptNode { type: 'department'; id: number; name: string; code?: string | null; color?: string | null; parent_id?: number | null; head_employee_id?: number | null; positions: PosNode[]; employees: EmpNode[]; children: DeptNode[] }
+interface DeptNode { type: 'department'; id: number; name: string; code?: string | null; color?: string | null; icon?: string | null; parent_id?: number | null; head_employee_id?: number | null; positions: PosNode[]; employees: EmpNode[]; children: DeptNode[] }
 type AnyNode = EmpNode | PosNode | DeptNode;
 interface TreeResp { mode: Mode; roots: AnyNode[]; unassigned?: EmpNode[]; total: number }
 interface Dept { id: number; name: string; color?: string; head_name?: string; employee_count: number; parent_id?: number | null }
@@ -216,7 +217,7 @@ export default function OrgTree() {
             </>
           ) : n.type === 'department' ? (
             <>
-              <span className="color-swatch" style={{ background: n.color || '#94a3b8' }} />
+              <DeptIcon name={n.name} icon={n.icon} color={n.color} size={32} />
               <div>
                 <div className="tree-name">{n.name} {n.code ? <span className="muted mono">{n.code}</span> : null}</div>
                 <div className="tree-sub">Head: {deptById.get(n.id)?.head_name || '—'}</div>

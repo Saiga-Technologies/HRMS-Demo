@@ -23,6 +23,7 @@ export function getDb(): DatabaseSync {
   db.exec(SCHEMA);
   db.exec(SCHEMA_V2);
   migrateColumns(db);
+  migratePalette(db);
   return db;
 }
 
@@ -32,6 +33,19 @@ function migrateColumns(d: DatabaseSync) {
     const cols = d.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
     if (!cols.some((c) => c.name === column)) d.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
   }
+}
+
+/** Move companies still on the original indigo default palette to the Darcio palette. */
+function migratePalette(d: DatabaseSync) {
+  const row = d.prepare("SELECT value FROM settings WHERE key = 'company'").get() as { value: string } | undefined;
+  if (!row) return;
+  try {
+    const c = JSON.parse(row.value);
+    if (String(c.brand_color).toLowerCase() !== '#4f46e5') return;
+    c.brand_color = '#4A8F49';
+    if (String(c.accent_color).toLowerCase() === '#0ea5a4') c.accent_color = '#D9922E';
+    d.prepare("UPDATE settings SET value = ? WHERE key = 'company'").run(JSON.stringify(c));
+  } catch { /* leave unparseable settings alone */ }
 }
 
 export function closeDb() {

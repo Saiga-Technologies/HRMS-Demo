@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { api, qs } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useCounts } from '../../lib/notifications';
-import { fmtDate, fmtDateTime, fmtMinutes, label } from '../../lib/format';
+import { fmtDate, fmtDateTime, fmtMinutes, label, todayIso } from '../../lib/format';
 import { Badge, Button, Card, EmptyState, Input, Pill, Spinner, StatusBadge, Table, useConfirm, useFetch, useToast } from '../ui';
 import { Icon } from '../Icons';
 import { BalanceCards } from './MyLeave';
@@ -19,7 +19,7 @@ export function ReasonChip({ c }: { c: CompOffCredit }) {
 }
 function ExpiryText({ c }: { c: CompOffCredit }) {
   if (!c.expires_on) return <span className="muted">—</span>;
-  const days = Math.round((Date.parse(c.expires_on + 'T00:00:00') - Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00')) / 86400000);
+  const days = Math.round((Date.parse(c.expires_on + 'T00:00:00') - Date.parse(todayIso() + 'T00:00:00')) / 86400000);
   if (c.expired || days < 0) return <span className="late">Expired {fmtDate(c.expires_on)}</span>;
   return <span className={days <= 14 ? 'late' : ''}>{fmtDate(c.expires_on)}<span className="muted"> · {days === 0 ? 'today' : `${days}d left`}</span></span>;
 }

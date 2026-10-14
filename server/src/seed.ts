@@ -42,14 +42,14 @@ export function seed() {
     setSetting('leave', DEFAULT_LEAVE_SETTINGS);
 
     // Departments (tree)
-    const dep = (name: string, code: string, color: string, parent: number | null = null) => insert('departments', { name, code, parent_id: parent, color, sort_order: 0, active: 1, created_at: now });
-    const exec = dep('Executive', 'EXEC', '#0f172a');
-    const eng = dep('Engineering', 'ENG', '#2563eb', exec);
-    const platform = dep('Platform', 'PLAT', '#1d4ed8', eng);
-    const product = dep('Product', 'PROD', '#7c3aed', exec);
-    const hr = dep('Human Resources', 'HR', '#db2777', exec);
-    const fin = dep('Finance', 'FIN', '#059669', exec);
-    const sales = dep('Sales', 'SALES', '#ea580c', exec);
+    const dep = (name: string, code: string, color: string, parent: number | null = null, icon: string | null = null) => insert('departments', { name, code, parent_id: parent, color, icon, sort_order: 0, active: 1, created_at: now });
+    const exec = dep('Executive', 'EXEC', '#0f172a', null, 'crown');
+    const eng = dep('Engineering', 'ENG', '#2563eb', exec, 'code');
+    const platform = dep('Platform', 'PLAT', '#0891b2', eng, 'server');
+    const product = dep('Product', 'PROD', '#7c3aed', exec, 'box');
+    const hr = dep('Human Resources', 'HR', '#db2777', exec, 'heartHandshake');
+    const fin = dep('Finance', 'FIN', '#059669', exec, 'wallet');
+    const sales = dep('Sales', 'SALES', '#ea580c', exec, 'trendingUp');
 
     const pos = (title: string, code: string, department_id: number, level: number, reports_to: number | null = null, headcount = 1) => insert('positions', { title, code, department_id, reports_to_position_id: reports_to, level, headcount, active: 1, created_at: now });
     const pCeo = pos('Chief Executive Officer', 'CEO', exec, 10);

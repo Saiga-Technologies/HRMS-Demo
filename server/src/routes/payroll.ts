@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { all, get, insert, update, run, getSetting, parseJson, parseJsonAll, transaction } from '../db.js';
 import { requireAuth, requireHr, canAccessEmployee, visibleEmployeeIds } from '../auth.js';
-import { badRequest, notFound, forbidden, pick, requireFields, audit, toInt, toNum, nowIso, round2, wrap, eachDay } from '../util.js';
+import { badRequest, notFound, forbidden, pick, requireFields, audit, toInt, toNum, nowIso, round2, wrap, eachDay, today as todayLocal } from '../util.js';
 import { DEFAULT_PAYROLL_SETTINGS } from './settings.js';
 
 const r = Router();
@@ -174,7 +174,7 @@ function lopFor(employeeId: number, start: string, end: string, settings: any): 
   const leaves = all<any>(`SELECT l.start_date, l.end_date, l.half_day, t.paid FROM leave_requests l JOIN leave_types t ON t.id = l.leave_type_id WHERE l.employee_id = ? AND l.status = 'approved' AND l.end_date >= ? AND l.start_date <= ?`, [employeeId, start, end]);
   const emp = get<any>('SELECT join_date, exit_date FROM employees WHERE id = ?', [employeeId]);
   let lop = 0, present = 0, unpaidLeave = 0, absent = 0, halfDays = 0;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   // Only deduct for absences when attendance was actually tracked for this employee in the period;
   // a month with no punches at all means attendance data is unavailable, not that the employee was absent.
   const trackAbsence = settings.lop_based_on_attendance && att.size > 0;

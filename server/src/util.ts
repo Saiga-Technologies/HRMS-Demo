@@ -15,7 +15,13 @@ export const notFound = (m = 'Not found') => new HttpError(404, m);
 export const forbidden = (m = 'Forbidden') => new HttpError(403, m);
 
 export const nowIso = () => new Date().toISOString();
-export const today = () => new Date().toISOString().slice(0, 10);
+/** Company's offset from UTC in minutes. Configurable through HRMS_TZ_OFFSET_MINUTES (default IST +330). */
+export function tzOffsetMinutes() {
+  const v = Number(process.env.HRMS_TZ_OFFSET_MINUTES);
+  return Number.isFinite(v) ? v : 330;
+}
+/** Today's date in the company's time zone (not UTC: just after midnight IST, UTC is still yesterday). */
+export const today = () => new Date(Date.now() + tzOffsetMinutes() * 60000).toISOString().slice(0, 10);
 
 /** Wrap async route handlers so rejections reach the error middleware. */
 export const wrap =

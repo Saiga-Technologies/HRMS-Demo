@@ -6,6 +6,8 @@ import { usePageTour } from '../lib/tour';
 import { fmtDate, fmtDateTime, fmtMinutes, fmtMoney, fmtTime, fullName, label, todayIso } from '../lib/format';
 import { Avatar, Badge, Button, Card, EmptyState, ExpiryDot, Field, Input, KeyValue, Modal, PageHeader, Spinner, Stat, StatusBadge, Table, Tabs, Textarea, useFetch, useForm, useToast } from '../components/ui';
 import { EmployeeFormModal, customFieldDisplay, groupDefs, type CustomFieldDef, type Employee } from '../components/EmployeeForm';
+import { DeptBadge } from '../components/DeptBadge';
+import { Icon } from '../components/Icons';
 import { DocumentPreviewModal, DocumentUploadModal, FormatBadge, fmtBytes, documentFileUrl, type DocumentRow } from '../components/DocumentModals';
 
 const TOUR = [
@@ -122,25 +124,28 @@ export default function EmployeeDetail() {
             {canEdit ? <span className="avatar-overlay">{uploadingPhoto ? <span className="spinner" /> : 'Change'}</span> : null}
             <input ref={photoInput} type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" style={{ display: 'none' }} data-testid="employee-photo-input" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); }} />
           </div>
-          <div className="stack" style={{ gap: 6, flex: 1, minWidth: 220 }}>
-            <div className="row">
-              <h2 style={{ fontSize: 22, margin: 0 }}>{name}</h2>
+          <div className="emp-header-main">
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <h2 className="emp-name">{name}</h2>
               <StatusBadge status={emp.status} label={label(emp.status)} />
               <Badge tone="neutral">{label(emp.employment_type)}</Badge>
             </div>
-            <div className="emp-meta">
+            <div className="emp-subtitle">
+              {emp.position_title ? <span>{emp.position_title}</span> : <span className="muted">No position</span>}
+              <span className="emp-subtitle-sep" aria-hidden>·</span>
               <span className="mono">{emp.employee_code}</span>
-              {emp.position_title ? <span>{emp.position_title}</span> : null}
-              {emp.department_name ? <span><span className="color-swatch" style={{ background: emp.department_color || '#94a3b8' }} />{emp.department_name}</span> : null}
-              {emp.work_location_name ? <span>📍 {emp.work_location_name}</span> : null}
-              <span>Joined {fmtDate(emp.join_date)}</span>
-            </div>
-            <div className="emp-meta">
-              <span>Manager: {emp.manager_id ? <Link to={`/employees/${emp.manager_id}`}>{emp.manager_name}</Link> : '—'}</span>
-              <span>Direct reports: <strong>{emp.direct_reports ?? 0}</strong></span>
-              {emp.user ? <span>Login: <span className="mono">{emp.user.email}</span> <Badge tone={emp.user.active ? 'info' : 'neutral'}>{emp.user.role}</Badge></span> : isHr ? <span className="muted">No login</span> : null}
             </div>
           </div>
+        </div>
+        <div className="emp-facts" data-testid="employee-facts">
+          <Fact label="Department"><DeptBadge name={emp.department_name} icon={emp.department_icon} color={emp.department_color} /></Fact>
+          <Fact label="Work location" icon="mapPin">{emp.work_location_name || <span className="muted">—</span>}</Fact>
+          <Fact label="Joined" icon="calendar">{fmtDate(emp.join_date)}{emp.join_date ? <span className="emp-fact-sub">{tenure(emp.join_date)}</span> : null}</Fact>
+          <Fact label="Reports to" icon="user">{emp.manager_id ? <Link to={`/employees/${emp.manager_id}`}>{emp.manager_name}</Link> : <span className="muted">—</span>}</Fact>
+          <Fact label="Direct reports" icon="users"><strong>{emp.direct_reports ?? 0}</strong></Fact>
+          {emp.user ? (
+            <Fact label="Login" icon="key"><span className="mono emp-fact-ellipsis" title={emp.user.email}>{emp.user.email}</span><span className="emp-fact-sub"><Badge tone={emp.user.active ? 'info' : 'neutral'}>{emp.user.role}</Badge></span></Fact>
+          ) : isHr ? <Fact label="Login" icon="key"><span className="muted">No login</span></Fact> : null}
         </div>
       </Card>
 
@@ -195,7 +200,7 @@ function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
       </Card>
       <Card title="Job & reporting">
         <KeyValue items={[
-          { k: 'Department', v: emp.department_name ? <span><span className="color-swatch" style={{ background: emp.department_color || '#94a3b8' }} />{emp.department_name}</span> : '—' },
+          { k: 'Department', v: <DeptBadge name={emp.department_name} icon={emp.department_icon} color={emp.department_color} /> },
           { k: 'Position', v: emp.position_title || '—' },
           { k: 'Manager', v: emp.manager_id ? <Link to={`/employees/${emp.manager_id}`}>{emp.manager_name}</Link> : '—' },
           { k: 'Employment type', v: label(emp.employment_type) },
@@ -675,4 +680,25 @@ function JourneyTab({ employeeId, candidateId }: { employeeId: number; candidate
       )}
     </Card>
   );
+}
+
+function Fact({ label: text, icon, children }: { label: string; icon?: string; children: React.ReactNode }) {
+  return (
+    <div className="emp-fact">
+      <div className="emp-fact-label">{icon ? <Icon name={icon} size={13} /> : null}{text}</div>
+      <div className="emp-fact-value">{children}</div>
+    </div>
+  );
+}
+
+/** "2 yrs 3 mos" style tenure from a join date. */
+function tenure(joinIso: string): string {
+  const start = new Date(joinIso);
+  const now = new Date();
+  if (isNaN(start.getTime()) || start > now) return 'Starts soon';
+  let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) months -= 1;
+  if (months < 1) return 'Less than a month';
+  const y = Math.floor(months / 12), m = months % 12;
+  return [y ? `${y} yr${y === 1 ? '' : 's'}` : '', m ? `${m} mo${m === 1 ? '' : 's'}` : ''].filter(Boolean).join(' ');
 }

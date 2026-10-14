@@ -1,9 +1,10 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { app, request, hr, employee, manager, auth, cleanup, login } from './helpers.js';
+import { today as companyToday, addDays as addDaysUtil } from '../src/util.js';
 
 afterAll(cleanup);
 const HQ = { lat: 12.9716, lng: 77.5946 };
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => companyToday(); // the company's date, which is what the server uses
 
 const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 const binary = (res: any, cb: (err: any, body: Buffer) => void) => { const chunks: Buffer[] = []; res.on('data', (c: Buffer) => chunks.push(c)); res.on('end', () => cb(null, Buffer.concat(chunks))); };
@@ -270,7 +271,7 @@ describe('attendance reports', () => {
 });
 
 describe('leave management', () => {
-  const fut = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+  const fut = (n: number) => addDaysUtil(companyToday(), n);
   const nextWeekday = (from: number) => { let n = from; while ([0, 6].includes(new Date(fut(n) + 'T00:00:00Z').getUTCDay())) n++; return n; };
   it('applies, checks balance, approves and deducts', async () => {
     const e = await employee();

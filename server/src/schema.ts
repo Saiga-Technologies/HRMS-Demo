@@ -764,4 +764,5 @@ export const COLUMN_MIGRATIONS: [string, string, string][] = [
   ['leave_requests', 'approver_employee_id', 'INTEGER'],
   ['employees', 'candidate_id', 'INTEGER'],
   ['vacancies', 'hired_count', 'INTEGER NOT NULL DEFAULT 0'],
+  ['departments', 'icon', 'TEXT'],                                                // icon name shown in the department badge
 ];

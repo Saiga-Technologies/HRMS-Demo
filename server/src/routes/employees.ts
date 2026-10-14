@@ -21,7 +21,7 @@ export const EMP_COLS = [
 const SENSITIVE = ['bank_account_number', 'bank_ifsc', 'tax_id', 'pf_number', 'bank_name', 'bank_account_name'];
 
 export const empQuery = `
-  SELECT e.*, d.name AS department_name, d.color AS department_color, p.title AS position_title,
+  SELECT e.*, d.name AS department_name, d.color AS department_color, d.icon AS department_icon, p.title AS position_title,
          m.first_name || ' ' || m.last_name AS manager_name, wl.name AS work_location_name, s.name AS shift_name, v.title AS vacancy_title,
          (SELECT COUNT(*) FROM employees x WHERE x.manager_id = e.id AND x.status != 'exited') AS direct_reports
   FROM employees e

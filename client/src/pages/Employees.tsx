@@ -7,6 +7,7 @@ import { fmtDate, fullName, label } from '../lib/format';
 import { Avatar, Button, Card, Checkbox, PageHeader, SearchInput, Select, Stat, StatusBadge, Table, useFetch, useToast } from '../components/ui';
 import { EmployeeFormModal, EMPLOYEE_STATUSES, type Department, type Employee, type Position } from '../components/EmployeeForm';
 import { Icon } from '../components/Icons';
+import { DeptBadge } from '../components/DeptBadge';
 import { CandidatePicker, HireModal } from '../components/recruitment/HireModal';
 import type { Candidate } from '../components/recruitment/types';
 
@@ -123,7 +124,7 @@ export default function Employees() {
               ),
             },
             { key: 'position_title', header: 'Position', render: (e) => e.position_title || '—' },
-            { key: 'department_name', header: 'Department', render: (e) => (e.department_name ? <span><span className="color-swatch" style={{ background: e.department_color || '#94a3b8' }} />{e.department_name}</span> : '—') },
+            { key: 'department_name', header: 'Department', render: (e) => <DeptBadge name={e.department_name} icon={e.department_icon} color={e.department_color} /> },
             { key: 'manager_name', header: 'Manager', render: (e) => e.manager_name || '—' },
             { key: 'join_date', header: 'Joined', render: (e) => fmtDate(e.join_date) },
             { key: 'employment_type', header: 'Type', render: (e) => label(e.employment_type) },

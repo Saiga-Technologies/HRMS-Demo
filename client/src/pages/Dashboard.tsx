@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour } from '../lib/tour';
-import { fmtDate, fmtMinutes, fmtMoney, fmtTime, fullName } from '../lib/format';
+import { fmtDate, fmtMinutes, fmtMoney, fmtTime, fullName, todayIso } from '../lib/format';
 import { Button, Card, EmptyState, ExpiryDot, Field, Input, Modal, PageHeader, Select, Stat, Textarea, useFetch, useToast, Badge } from '../components/ui';
 import { BarChart, DonutChart, LineChart, Heatmap, Gauge, CHART_COLORS, type Datum } from '../components/charts';
 import { Icon } from '../components/Icons';
@@ -103,7 +103,7 @@ export default function Dashboard() {
       <PageHeader
         tour="dash-header"
         title={`${greeting}, ${user?.first_name || user?.email}`}
-        subtitle={`${company.name || 'Your company'} · ${fmtDate(new Date().toISOString().slice(0, 10), { weekday: 'long', day: 'numeric', month: 'long' })} · ${scopeLabel}`}
+        subtitle={`${company.name || 'Your company'} · ${fmtDate(todayIso(), { weekday: 'long', day: 'numeric', month: 'long' })} · ${scopeLabel}`}
         actions={
           <>
             <Button onClick={reset} data-tour="dash-reset">Reset layout</Button>
@@ -493,13 +493,17 @@ function ChartCard({ k, data, currency, onOpen, first }: { k: string; data: any;
       );
     }
     case 'my_leave_balance_chart': {
-      const rows: any[] = data.my_leave_balance_detail || [];
+      const all: any[] = data.my_leave_balance_detail || [];
+      // Unpaid leave and long special entitlements (maternity…) would dwarf the everyday balances, so list them separately.
+      const everyday = (b: any) => Number(b.paid) === 1 && Number(b.annual_quota) <= 60;
+      const rows = all.filter(everyday);
+      const special = all.filter((b) => !everyday(b) && Number(b.paid) === 1 && b.available > 0);
       const items: Datum[] = rows.map((b, i) => ({ key: String(b.leave_type_id), label: b.name, value: Math.max(0, b.available), color: b.color || CHART_COLORS[i % CHART_COLORS.length], hint: `${b.name}: ${b.available} available · ${b.used} used of ${b.allocated + b.carried + b.adjusted}` }));
       const used = sum(rows.map((b) => b.used)), avail = sum(rows.map((b) => Math.max(0, b.available)));
       return (
         <>
           <DonutChart data={items} centerLabel={`${avail}`} onSelect={(d) => onOpen(`/leave?type=${d.key}`)} />
-          <Insight first={first} text={rows.length ? `${avail} day${avail === 1 ? '' : 's'} available, ${used} used this year. Click a type to apply.` : 'No leave balances for this year yet.'} />
+          <Insight first={first} text={rows.length ? `${avail} day${avail === 1 ? '' : 's'} available, ${used} used this year. Click a type to apply.${special.length ? ` Also eligible: ${special.map((b) => `${b.name} (${b.available})`).join(', ')}.` : ''}` : 'No leave balances for this year yet.'} />
         </>
       );
     }

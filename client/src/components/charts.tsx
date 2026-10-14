@@ -4,7 +4,7 @@ import React, { useState } from 'react';
  * Dependency-free SVG charts for the dashboard and reports. Every chart accepts an `onSelect`
  * so a slice / bar / point can navigate somewhere, and renders legibly in both themes.
  */
-export const CHART_COLORS = ['var(--brand)', 'var(--accent)', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16', '#ec4899', '#64748b'];
+export const CHART_COLORS = ['var(--brand)', 'var(--accent)', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6', '#64748b'];
 
 export interface Datum { label: string; value: number; color?: string; key?: string; hint?: string }
 

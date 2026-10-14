@@ -19,8 +19,8 @@ export const DEFAULT_COMPANY = {
   date_format: 'DD MMM YYYY',
   week_start: 1,
   logo_text: 'A',
-  brand_color: '#4f46e5',
-  accent_color: '#0ea5a4',
+  brand_color: '#4A8F49', // Darcio green (dark) — legible under white button text
+  accent_color: '#D9922E',
   default_theme: 'light',
   employee_code_prefix: 'EMP',
   financial_year_start_month: 4,

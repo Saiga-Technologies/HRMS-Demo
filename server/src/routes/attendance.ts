@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import { all, get, insert, update, run, getSetting, parseJson, parseJsonAll, transaction } from '../db.js';
 import { requireAuth, requireHr, requireRole, canAccessEmployee, visibleEmployeeIds } from '../auth.js';
 import { approverChain, approvableEmployeeIds, canApproveFor, defaultApprover } from '../approvers.js';
-import { badRequest, notFound, forbidden, pick, requireFields, audit, toInt, toNum, nowIso, today, wrap, distanceMeters, eachDay, assertDate, addDays } from '../util.js';
+import { badRequest, notFound, forbidden, pick, requireFields, audit, toInt, toNum, nowIso, today, wrap, distanceMeters, eachDay, assertDate, addDays, tzOffsetMinutes } from '../util.js';
 import { DEFAULT_ATTENDANCE_SETTINGS } from './settings.js';
 
 const r = Router();
@@ -127,11 +127,8 @@ export function recompute(recordId: number, deriveStatus = false) {
   }
   update('attendance_records', recordId, { work_minutes: work, break_minutes: breakMin, overtime_minutes: overtime, late_minutes: late, status, updated_at: nowIso() });
 }
-/** Local offset used for shift comparisons. Configurable through HRMS_TZ_OFFSET_MINUTES (default IST +330). */
-export function tzOffsetMinutes() {
-  const v = Number(process.env.HRMS_TZ_OFFSET_MINUTES);
-  return Number.isFinite(v) ? v : 330;
-}
+/** Local offset used for shift comparisons (re-exported for existing importers). */
+export { tzOffsetMinutes };
 
 function checkFence(lat: any, lng: any, employeeId: number) {
   const settings = attendanceSettings();

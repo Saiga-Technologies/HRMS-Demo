@@ -31,7 +31,7 @@ test.describe('attendance', () => {
     await page.getByTestId('appeal-new').click();
     const m = page.getByRole('dialog');
     const d = new Date(Date.now() - 3 * 86400000);
-    const date = d.toISOString().slice(0, 10);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // local date, like the date picker
     await m.getByTestId('appeal-kind').selectOption('status');
     await m.getByTestId('appeal-date').fill(date);
     await m.getByTestId('appeal-status').selectOption('wfh');

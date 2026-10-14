@@ -2,15 +2,16 @@ import React, { useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour } from '../lib/tour';
+import { DeptBadge, DeptIconPicker, deptIcon } from '../components/DeptBadge';
 import { Button, Card, Field, Input, Modal, PageHeader, Select, Table, Tabs, Textarea, useConfirm, useFetch, useForm, useToast, SearchInput, Badge } from '../components/ui';
 
-interface Department { id: number; name: string; code?: string; parent_id?: number | null; parent_name?: string; head_employee_id?: number | null; head_name?: string; description?: string; color?: string; employee_count: number; position_count: number; active: number }
+interface Department { id: number; name: string; code?: string; parent_id?: number | null; parent_name?: string; head_employee_id?: number | null; head_name?: string; description?: string; color?: string; icon?: string | null; employee_count: number; position_count: number; active: number }
 interface Position { id: number; title: string; code?: string; department_id?: number | null; department_name?: string; reports_to_position_id?: number | null; reports_to_title?: string; level: number; grade?: string; headcount: number; filled: number; description?: string; active: number; jd_count: number }
 
 const TOUR = [
   { element: '[data-tour="org-tabs"]', title: 'Departments and positions', description: 'Switch between the department list and the position (job title) list. Both feed the org tree.' },
   { element: '[data-tour="org-add"]', title: 'Add a department or position', description: 'HR can create new departments (with a parent department) and positions (with a reporting line and headcount).' },
-  { element: '[data-tour="org-table"]', title: 'Manage the structure', description: 'Click any row to edit it. Department colours are used in the org tree. Positions track filled vs planned headcount.' },
+  { element: '[data-tour="org-table"]', title: 'Manage the structure', description: 'Click any row to edit it. Each department has an icon and colour used across the app. Positions track filled vs planned headcount.' },
 ];
 
 export default function OrgStructure() {
@@ -51,7 +52,7 @@ export default function OrgStructure() {
             rows={filteredDepts}
             onRowClick={isHr ? (d) => setEditDept(d) : undefined}
             columns={[
-              { key: 'name', header: 'Department', render: (d) => (<span><span className="color-swatch" style={{ background: d.color || '#94a3b8' }} /><strong>{d.name}</strong> {d.code ? <span className="muted mono">{d.code}</span> : null}</span>) },
+              { key: 'name', header: 'Department', render: (d) => <DeptBadge name={d.name} icon={d.icon} color={d.color} code={d.code} size="md" /> },
               { key: 'parent_name', header: 'Parent', render: (d) => d.parent_name || '—' },
               { key: 'head_name', header: 'Head', render: (d) => d.head_name || '—' },
               { key: 'position_count', header: 'Positions', align: 'right' },
@@ -91,7 +92,7 @@ export default function OrgStructure() {
 function DepartmentModal({ dept, departments, employees, onClose, onSaved }: { dept: Partial<Department>; departments: Department[]; employees: any[]; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
-  const f = useForm({ name: dept.name || '', code: dept.code || '', parent_id: dept.parent_id ?? '', head_employee_id: dept.head_employee_id ?? '', description: dept.description || '', color: dept.color || '#2563eb', active: dept.active ?? 1 });
+  const f = useForm({ name: dept.name || '', code: dept.code || '', parent_id: dept.parent_id ?? '', head_employee_id: dept.head_employee_id ?? '', description: dept.description || '', color: dept.color || '#2563eb', icon: deptIcon(dept.name, dept.icon), active: dept.active ?? 1 });
   const [busy, setBusy] = useState(false);
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,8 +142,9 @@ function DepartmentModal({ dept, departments, employees, onClose, onSaved }: { d
             {employees.map((e) => <option key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.employee_code})</option>)}
           </Select>
         </Field>
-        <Field label="Colour (used in org tree)"><Input type="color" {...f.bind('color')} /></Field>
+        <Field label="Colour" hint="Tints the department icon everywhere"><Input type="color" {...f.bind('color')} /></Field>
         <Field label="Status"><Select {...f.bind('active')}><option value={1}>Active</option><option value={0}>Inactive</option></Select></Field>
+        <Field label="Icon" className="span-2"><DeptIconPicker value={String(f.values.icon)} color={String(f.values.color)} onChange={(icon) => f.set('icon', icon)} /></Field>
         <Field label="Description" className="span-2"><Textarea {...f.bind('description')} /></Field>
       </form>
     </Modal>
