@@ -111,7 +111,7 @@ export default function Layout() {
         <header className="topbar">
           <button className="icon-btn menu-toggle" onClick={() => setSidebarOpen((o) => !o)} aria-label="Toggle navigation"><Icon name="menu" /></button>
           <div className="topbar-spacer" />
-          <Button variant="primary" size="sm" onClick={start} disabled={!steps.length} data-tour="tour-button" data-testid="tour-button" title={steps.length ? `Guided tour of ${pageName}` : 'No tour on this page'}>
+          <Button variant="primary" size="sm" onClick={start} data-tour="tour-button" data-testid="tour-button" title={steps.length ? `Guided tour of ${pageName}` : 'Guided tour of the app'}>
             <Icon name="sparkles" size={15} /> Tour this page
           </Button>
           <button className="icon-btn theme-toggle" onClick={toggle} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} title={theme === 'dark' ? 'Light theme' : 'Dark theme'} data-testid="theme-toggle">

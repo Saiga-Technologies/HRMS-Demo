@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { login, runTour, USERS } from './helpers';
 
-const PAGES = ['/', '/employees', '/employees/6', '/org', '/org-tree', '/recruitment', '/jobs', '/journey', '/documents', '/attendance', '/leave', '/payroll', '/assets', '/settings', '/account'];
+const PAGES = ['/', '/employees', '/employees/6', '/org', '/org-tree', '/recruitment', '/jobs', '/journey', '/documents', '/attendance', '/leave', '/payroll', '/assets', '/settings', '/account', '/letters', '/performance', '/roster', '/clients', '/announcements', '/integrations'];
 
 test('every page offers a working "Tour this page" walkthrough (HR)', async ({ page }) => {
   await login(page, USERS.hr);

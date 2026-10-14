@@ -16,6 +16,19 @@ export interface TourStep {
   align?: 'start' | 'center' | 'end';
 }
 
+/**
+ * Used when a page registers no steps of its own, so "Tour this page" is never a dead button.
+ * Targets live in the layout (and the page header), so they exist on every signed-in page.
+ */
+export const GENERAL_TOUR: TourStep[] = [
+  { element: '.page-header', title: 'This page', description: 'The page title and summary. Actions for the page sit on the right of this header.' },
+  { element: '[data-tour="sidebar"]', title: 'Navigation', description: 'Every module lives here. Red badges count items waiting for you. Hover to expand, or pin the menu open at the bottom.' },
+  { element: '[data-testid="bell"]', title: 'Things that need you', description: 'Pending approvals, appeals and requests. Click to jump straight to them.' },
+  { element: '[data-testid="theme-toggle"]', title: 'Light and dark theme', description: 'Switch themes any time; your choice is remembered on this device.' },
+  { element: '[data-testid="user-menu"]', title: 'Your account', description: 'Your profile, password and sign out.' },
+  { element: '[data-tour="tour-button"]', title: 'Tour any page', description: 'Pages with more to explore have their own step-by-step tour behind this button.' },
+];
+
 interface TourCtx {
   steps: TourStep[];
   pageName: string;
@@ -38,7 +51,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const start = useCallback(() => {
-    const available: DriveStep[] = steps
+    const available: DriveStep[] = (steps.length ? steps : GENERAL_TOUR)
       .filter((s) => !s.element || document.querySelector(s.element))
       .map((s) => ({
         element: s.element,
