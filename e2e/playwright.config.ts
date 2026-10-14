@@ -6,6 +6,9 @@ import os from 'node:os';
 // Fresh seeded database for every e2e run.
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hrms-e2e-'));
 const PORT = Number(process.env.E2E_PORT || 4100);
+// Use a preinstalled Chromium when one is provided (e.g. PW_CHROMIUM_PATH=/opt/pw-browsers/chromium);
+// otherwise Playwright's own downloaded browser is used.
+const chromiumPath = process.env.PW_CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined);
 
 export default defineConfig({
   testDir: path.join(__dirname, 'tests'),
@@ -21,6 +24,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     ...devices['Desktop Chrome'],
+    launchOptions: chromiumPath ? { executablePath: chromiumPath } : {},
     geolocation: { latitude: 12.9716, longitude: 77.5946 }, // inside the seeded Bengaluru HQ geofence
     permissions: ['geolocation'],
   },

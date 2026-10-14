@@ -290,9 +290,16 @@ export function EmployeeFormModal({ employee, mode, onClose, onSaved }: { employ
               <React.Fragment key={g.section}>
                 <div className="form-section">{g.section}</div>
                 {g.defs.map((d) => (
-                  <Field key={d.id} label={d.label} required={!!d.required} className={d.type === 'textarea' ? 'span-2' : ''}>
-                    <CustomFieldInput def={d} value={cf[d.key]} onChange={(val) => setCf((s) => ({ ...s, [d.key]: val }))} />
-                  </Field>
+                  d.type === 'boolean' ? (
+                    <div key={d.id} className="field">
+                      <span className="field-label">{d.label}{d.required ? <span className="req"> *</span> : null}</span>
+                      <CustomFieldInput def={d} value={cf[d.key]} onChange={(val) => setCf((s) => ({ ...s, [d.key]: val }))} />
+                    </div>
+                  ) : (
+                    <Field key={d.id} label={d.label} required={!!d.required} className={d.type === 'textarea' ? 'span-2' : ''}>
+                      <CustomFieldInput def={d} value={cf[d.key]} onChange={(val) => setCf((s) => ({ ...s, [d.key]: val }))} />
+                    </Field>
+                  )
                 ))}
               </React.Fragment>
             ))}

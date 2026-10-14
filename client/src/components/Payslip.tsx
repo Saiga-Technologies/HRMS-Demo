@@ -12,8 +12,8 @@ export interface PayslipData {
   run_status?: string;
   employee_name?: string;
   employee_code?: string;
-  department_name?: string;
-  position_title?: string;
+  department_name?: string | null;
+  position_title?: string | null;
   bank_name?: string | null;
   bank_account_number?: string | null;
   pf_number?: string | null;

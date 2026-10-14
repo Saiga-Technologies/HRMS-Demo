@@ -303,7 +303,7 @@ export function useFetch<T>(fn: () => Promise<T>, deps: any[] = []) {
 export function useForm<T extends Record<string, any>>(initial: T) {
   const [values, setValues] = useState<T>(initial);
   const set = (k: keyof T, v: any) => setValues((s) => ({ ...s, [k]: v }));
-  const bind = (k: keyof T) => ({ name: String(k), value: values[k] ?? '', onChange: (e: React.ChangeEvent<any>) => set(k, e.target.type === 'checkbox' ? e.target.checked : e.target.value) });
+  const bind = (k: keyof T) => ({ name: String(k), value: (values[k] ?? '') as any, onChange: (e: React.ChangeEvent<any>) => set(k, e.target.type === 'checkbox' ? e.target.checked : e.target.value) });
   const reset = (v: T = initial) => setValues(v);
   return { values, set, bind, reset, setValues };
 }

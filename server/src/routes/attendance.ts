@@ -200,6 +200,7 @@ r.post('/me/break/start', requireAuth, wrap(async (req, res) => {
   if (get('SELECT 1 FROM attendance_breaks WHERE attendance_id = ? AND end_at IS NULL', [rec.id])) throw badRequest('A break is already running');
   const type = ['break', 'lunch', 'personal'].includes(req.body.type) ? req.body.type : 'break';
   insert('attendance_breaks', { attendance_id: rec.id, type, start_at: nowIso(), minutes: 0, note: req.body.note || null });
+  recompute(rec.id);
   res.json(withBreaks([get(`${recQuery} WHERE a.id = ?`, [rec.id])])[0]);
 }));
 r.post('/me/break/end', requireAuth, wrap(async (req, res) => {

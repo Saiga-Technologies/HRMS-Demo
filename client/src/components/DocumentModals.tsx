@@ -272,7 +272,7 @@ export function DocumentUploadModal({ open, employeeId, employees, onClose, onUp
         <Field label="Document type" required hint={type ? `Accepts: ${allowed.map((x) => FORMAT_LABEL[x]).join(', ')} · max ${type.max_size_mb} MB${type.requires_expiry ? ' · expiry required' : ''}` : 'Pick a type to see which formats are accepted'} className="span-2">
           <Select {...f.bind('document_type_id')} required data-testid="document-type">
             <option value="">— Select type —</option>
-            {activeTypes.map((t) => <option key={t.id} value={t.id}>{t.name}{t.category ? ` (${t.category})` : ''}</option>)}
+            {activeTypes.map((t) => <option key={t.id} value={t.id} title={t.category || undefined}>{t.name}</option>)}
           </Select>
         </Field>
         <div className="span-2">

@@ -10,7 +10,7 @@ export default function CorrectionModal({ date, record, employees, onClose, onSa
   const toast = useToast();
   const { isHr, user } = useAuth();
   const f = useForm({
-    employee_id: record?.employee_id ?? user?.employee_id ?? '',
+    employee_id: record?.employee_id ?? user?.employee_id ?? employees?.[0]?.id ?? '',
     date: date || record?.date || todayIso(),
     requested_punch_in: isoToLocal(record?.punch_in_at),
     requested_punch_out: isoToLocal(record?.punch_out_at),
