@@ -24,6 +24,7 @@ export function getDb(): DatabaseSync {
   db.exec(SCHEMA_V2);
   migrateColumns(db);
   migratePalette(db);
+  migrateTrendCardSize(db);
   return db;
 }
 
@@ -46,6 +47,24 @@ function migratePalette(d: DatabaseSync) {
     if (String(c.accent_color).toLowerCase() === '#0ea5a4') c.accent_color = '#D9922E';
     d.prepare("UPDATE settings SET value = ? WHERE key = 'company'").run(JSON.stringify(c));
   } catch { /* leave unparseable settings alone */ }
+}
+
+/**
+ * The attendance trend card used to default to full width. Shrink existing ones to half width once
+ * (a marker row stops it re-running, so a card a user later sets to Large stays Large).
+ */
+function migrateTrendCardSize(d: DatabaseSync) {
+  const marker = 'migration:attendance_trend_md';
+  if (d.prepare('SELECT 1 FROM settings WHERE key = ?').get(marker)) return;
+  d.exec('BEGIN');
+  try {
+    d.prepare(`UPDATE dashboard_cards SET size = 'md' WHERE size = 'lg' AND json_extract(config, '$.key') = 'attendance_trend'`).run();
+    const now = new Date().toISOString();
+    d.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)').run(marker, JSON.stringify({ applied_at: now }), now);
+    d.exec('COMMIT');
+  } catch {
+    d.exec('ROLLBACK');
+  }
 }
 
 export function closeDb() {

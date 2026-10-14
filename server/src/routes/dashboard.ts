@@ -37,7 +37,7 @@ export const CARD_CATALOG: CatalogEntry[] = [
   { type: 'stat', key: 'my_payslip_requests', title: 'My payslip requests', roles: ALL, category: 'Personal', icon: 'file', size: 'sm', description: 'Shortcut to request a payslip and track open requests.' },
   // ---- charts
   { type: 'chart', key: 'today_attendance', title: "Today's attendance", roles: MGMT, category: 'Attendance', icon: 'clock', size: 'md', chart: 'donut', description: 'Present, late, on leave, absent and not yet in.' },
-  { type: 'chart', key: 'attendance_trend', title: 'Attendance trend', roles: MGMT, category: 'Attendance', icon: 'trendingUp', size: 'lg', chart: 'line', description: 'Present, absent and late per working day for the last 30 working days.' },
+  { type: 'chart', key: 'attendance_trend', title: 'Attendance trend', roles: MGMT, category: 'Attendance', icon: 'trendingUp', size: 'md', chart: 'line', description: 'Present, absent and late per working day for the last 30 working days.' },
   { type: 'chart', key: 'late_comers', title: 'Late comers', roles: MGMT, category: 'Attendance', icon: 'alert', size: 'md', chart: 'hbar', description: 'Top 8 employees by late days this month.' },
   { type: 'chart', key: 'work_hours_distribution', title: 'Work hours distribution', roles: MGMT, category: 'Attendance', icon: 'grid', size: 'md', chart: 'bar', description: 'Average daily work hours per employee, bucketed.' },
   { type: 'chart', key: 'headcount_by_department', title: 'Headcount by department', roles: MGMT, category: 'People', icon: 'sitemap', size: 'md', chart: 'hbar' },
