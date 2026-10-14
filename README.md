@@ -63,9 +63,11 @@ as static files and the whole Express API runs as one serverless function.
 
 1. In the Vercel dashboard choose **Add New → Project → Import** and pick the `HRMS-Demo` GitHub
    repository (install the Vercel GitHub app on the account/org if it asks).
-2. Leave the detected settings as they are: Framework **Other**, build command `npm run build`,
-   output directory `client/dist`, install command `npm install`. Node.js version **22.x**
-   (Project → Settings → General → Node.js Version) — the server uses Node's built-in SQLite.
+2. **Root Directory must stay empty** (the repository root), otherwise `vercel.json` and the
+   `api/` function are not picked up and the build fails with "No Output Directory named dist".
+   If the import wizard suggested `client` as the root, clear it (Project → Settings → General →
+   Root Directory). Framework preset **Other**; `vercel.json` already sets the build command
+   (`npm run build`), output directory (`client/dist`) and install command. Node.js **22.x**.
 3. Click **Deploy**. Every push to `main` redeploys automatically; pull requests get preview URLs.
 
 No environment variables are required for the demo. Optional ones: `HRMS_TZ_OFFSET_MINUTES`

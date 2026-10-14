@@ -16,7 +16,23 @@ async function getApp() {
   return appPromise;
 }
 
+/** The vercel.json rewrite maps /api/:path* to /api/index?path=...; restore the original URL for Express. */
+function normalizeUrl(req) {
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    if (url.pathname === '/api/index' && url.searchParams.has('path')) {
+      const p = url.searchParams.get('path') || '';
+      url.searchParams.delete('path');
+      url.pathname = '/api/' + p.replace(/^\/+/, '');
+      req.url = url.pathname + (url.search || '');
+    }
+  } catch {
+    /* leave as-is */
+  }
+}
+
 export default async function handler(req, res) {
+  normalizeUrl(req);
   const app = await getApp();
   return app(req, res);
 }
