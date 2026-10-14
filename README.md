@@ -70,17 +70,27 @@ as static files and the whole Express API runs as one serverless function.
    (`npm run build`), output directory (`client/dist`) and install command. Node.js **22.x**.
 3. Click **Deploy**. Every push to `main` redeploys automatically; pull requests get preview URLs.
 
-No environment variables are required for the demo. Optional ones: `HRMS_TZ_OFFSET_MINUTES`
-(default 330) and, if the runtime is older than Node 22.13, `NODE_OPTIONS=--experimental-sqlite`.
+Environment variables (Project → Settings → Environment Variables):
 
-**Demo-mode storage caveat.** Vercel functions have no persistent disk, so on Vercel the SQLite
-database and uploaded files live in `/tmp`. They survive while an instance is warm and are
-**re-seeded with the demo data on every cold start** — ideal for demos and sales walkthroughs, not
-for customer data. For a persistent deployment either run `npm run build && npm run start:prod`
-on any host with a disk (Railway, Render, Fly.io, a VM, Docker), or swap the storage layer to a
-hosted database (Turso/libSQL or Postgres) and object storage (Vercel Blob / S3) — the data access
-is isolated in `server/src/db.ts` and the upload paths in `server/src/routes/documents.ts` and
-`employees.ts`.
+| Variable | Needed? | Purpose |
+| --- | --- | --- |
+| `HRMS_SESSION_SECRET` | recommended | Secret for the signed session cookies used on serverless hosts (any long random string). Without it a per-deployment secret is derived, so every redeploy signs everyone out. |
+| `HRMS_TZ_OFFSET_MINUTES` | optional | Local offset for shift comparisons (default 330). |
+| `NODE_OPTIONS=--experimental-sqlite` | only if the runtime is older than Node 22.13 | Enables the built-in SQLite module. |
+
+**Demo-mode storage caveat.** Vercel functions have no persistent or shared disk. On Vercel the
+SQLite database and uploaded files live in `/tmp` **of each function instance**: they are re-seeded
+with the demo data on every cold start, and two instances serving the same site do not share
+changes. Logins keep working across instances because sessions are signed tokens there, but a
+record created on one instance can be missing on another and disappears after idle time. This is
+fine for click-through demos and sales walkthroughs, not for customer data. For a persistent
+deployment either run `npm run build && npm run start:prod` on any host with a disk (Railway,
+Render, Fly.io, a VM, Docker), or swap the storage layer to a hosted database (Turso/libSQL or
+Postgres) and object storage (Vercel Blob / S3) — data access is isolated in `server/src/db.ts`
+and the upload paths in `server/src/routes/documents.ts` and `employees.ts`.
+
+`GET /api/health` reports the instance id and session/storage mode, which makes instance switches
+visible when diagnosing a deployment.
 
 ## Tech stack
 

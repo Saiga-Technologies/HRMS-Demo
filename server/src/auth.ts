@@ -24,6 +24,50 @@ declare global {
 export const SESSION_COOKIE = 'hrms_session';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12h
 
+/**
+ * Session storage mode.
+ *  - Default: sessions are rows in the `sessions` table (revocable, listable).
+ *  - Stateless: the token itself is a signed payload (HMAC-SHA256) so it is valid on every server
+ *    instance. Used on serverless hosts such as Vercel, where each instance has its own /tmp
+ *    database and a DB-backed session created on one instance would be unknown to the next.
+ */
+export function statelessSessions(): boolean {
+  return process.env.HRMS_STATELESS_SESSIONS === '1' || (!!process.env.VERCEL && process.env.HRMS_STATELESS_SESSIONS !== '0');
+}
+let processSecret: string | null = null;
+export function sessionSecret(): string {
+  if (process.env.HRMS_SESSION_SECRET) return process.env.HRMS_SESSION_SECRET;
+  // Serverless fallback: derive a secret that is identical on every instance of the same deployment.
+  if (process.env.VERCEL && (process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_PROJECT_ID)) {
+    return crypto.createHash('sha256').update(`hrms|${process.env.VERCEL_PROJECT_ID || ''}|${process.env.VERCEL_DEPLOYMENT_ID || ''}|${process.env.VERCEL_GIT_COMMIT_SHA || ''}`).digest('hex');
+  }
+  if (!processSecret) processSecret = crypto.randomBytes(32).toString('hex');
+  return processSecret;
+}
+const b64u = (s: string | Buffer) => Buffer.from(s).toString('base64url');
+function sign(payload: string) {
+  return crypto.createHmac('sha256', sessionSecret()).update(payload).digest('base64url');
+}
+function makeStatelessToken(user: { id: number; role: string; employee_id: number | null }): string {
+  const payload = b64u(JSON.stringify({ u: user.id, r: user.role, e: user.employee_id, x: Date.now() + SESSION_TTL_MS }));
+  return `${payload}.${sign(payload)}`;
+}
+function readStatelessToken(token: string): { u: number; r: Role; e: number | null; x: number } | null {
+  const i = token.indexOf('.');
+  if (i < 0) return null;
+  const payload = token.slice(0, i);
+  const sig = token.slice(i + 1);
+  const expected = sign(payload);
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (typeof data.u !== 'number' || typeof data.x !== 'number' || data.x < Date.now()) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -38,6 +82,11 @@ export function verifyPassword(password: string, stored: string): boolean {
 }
 
 export function createSession(userId: number, userAgent?: string): string {
+  run('UPDATE users SET last_login_at = ? WHERE id = ?', [nowIso(), userId]);
+  if (statelessSessions()) {
+    const u = get<any>('SELECT id, role, employee_id FROM users WHERE id = ?', [userId])!;
+    return makeStatelessToken(u);
+  }
   const token = crypto.randomBytes(32).toString('base64url');
   const now = Date.now();
   insert('sessions', {
@@ -47,7 +96,6 @@ export function createSession(userId: number, userAgent?: string): string {
     expires_at: new Date(now + SESSION_TTL_MS).toISOString(),
     user_agent: userAgent?.slice(0, 200) ?? null,
   });
-  run('UPDATE users SET last_login_at = ? WHERE id = ?', [nowIso(), userId]);
   return token;
 }
 export function destroySession(token: string) {
@@ -70,6 +118,20 @@ export function attachUser(req: Request, _res: Response, next: NextFunction) {
   const bearer = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
   const token = bearer || parseCookies(req.headers.cookie)[SESSION_COOKIE];
   if (!token) return next();
+  if (token.includes('.')) {
+    const data = readStatelessToken(token);
+    if (data) {
+      // Prefer the live user row when this instance has it (picks up role changes / deactivation);
+      // otherwise trust the signed payload so the session survives instance switches.
+      const u = get<any>('SELECT id, email, role, employee_id, must_change_password, active FROM users WHERE id = ?', [data.u]);
+      if (u && !u.active) return next();
+      req.user = u
+        ? { id: u.id, email: u.email, role: u.role, employee_id: u.employee_id, must_change_password: u.must_change_password }
+        : { id: data.u, email: '', role: data.r, employee_id: data.e, must_change_password: 0 };
+      req.sessionToken = token;
+    }
+    return next();
+  }
   const row = get<any>(
     `SELECT u.id, u.email, u.role, u.employee_id, u.must_change_password, s.expires_at
      FROM sessions s JOIN users u ON u.id = s.user_id

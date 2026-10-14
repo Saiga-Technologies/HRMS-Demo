@@ -3,7 +3,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { getDb } from './db.js';
-import { attachUser } from './auth.js';
+import crypto from 'node:crypto';
+import { attachUser, statelessSessions } from './auth.js';
 import { HttpError } from './util.js';
 import authRoutes from './routes/auth.js';
 import settingsRoutes from './routes/settings.js';
@@ -50,7 +51,8 @@ export function createApp() {
 
   app.use(attachUser);
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+  const instanceId = crypto.randomBytes(4).toString('hex');
+  app.get('/api/health', (_req, res) => res.json({ ok: true, time: new Date().toISOString(), instance: instanceId, sessions: statelessSessions() ? 'stateless' : 'database', storage: process.env.VERCEL ? 'ephemeral (/tmp, per instance)' : 'disk' }));
   app.use('/api/auth', authRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/org', orgRoutes);

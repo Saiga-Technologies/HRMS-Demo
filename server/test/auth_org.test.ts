@@ -37,6 +37,30 @@ describe('auth', () => {
   });
 });
 
+describe('stateless sessions (serverless mode)', () => {
+  it('issues a signed token that works without a session row and rejects tampering', async () => {
+    process.env.HRMS_STATELESS_SESSIONS = '1';
+    process.env.HRMS_SESSION_SECRET = 'test-secret';
+    try {
+      const res = await request(app).post('/api/auth/login').send({ email: 'hr@acme.example', password: PASSWORD });
+      expect(res.status).toBe(200);
+      expect(res.body.token).toContain('.');
+      const me = await request(app).get('/api/auth/me').set(auth(res.body.token));
+      expect(me.status).toBe(200);
+      expect(me.body.user.role).toBe('hr');
+      const [payload] = res.body.token.split('.');
+      expect((await request(app).get('/api/auth/me').set(auth(`${payload}.bad`))).status).toBe(401);
+      const forged = Buffer.from(JSON.stringify({ u: 1, r: 'hr', e: null, x: Date.now() + 1e6 })).toString('base64url');
+      expect((await request(app).get('/api/auth/me').set(auth(`${forged}.${'a'.repeat(43)}`))).status).toBe(401);
+      process.env.HRMS_SESSION_SECRET = 'rotated';
+      expect((await request(app).get('/api/auth/me').set(auth(res.body.token))).status).toBe(401);
+    } finally {
+      delete process.env.HRMS_STATELESS_SESSIONS;
+      delete process.env.HRMS_SESSION_SECRET;
+    }
+  });
+});
+
 describe('org structure', () => {
   it('creates departments, positions, and builds both tree modes', async () => {
     const t = await hr();
