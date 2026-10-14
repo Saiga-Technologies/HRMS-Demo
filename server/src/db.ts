@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { SCHEMA } from './schema.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const DATA_DIR = process.env.HRMS_DATA_DIR || path.resolve(here, '..', 'data');
+// On Vercel (and other serverless hosts) only /tmp is writable, so the demo database and uploads
+// live there. That storage is ephemeral: it resets on cold starts and is reseeded automatically.
+export const DATA_DIR = process.env.HRMS_DATA_DIR || (process.env.VERCEL ? '/tmp/hrms-data' : path.resolve(here, '..', 'data'));
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
 export type Row = Record<string, any>;

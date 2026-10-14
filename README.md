@@ -30,7 +30,7 @@ Or build and run as one process:
 
 ```bash
 npm run build
-npm start            # http://localhost:4000
+npm run start:prod   # http://localhost:4000 (compiled server + static client)
 ```
 
 The database is created and **seeded with demo data** on first start (`server/data/hrms.sqlite`).
@@ -55,6 +55,30 @@ npm run test:all     # everything
 
 Playwright needs a Chromium; run `npx playwright install chromium` once if it is not already
 available on the machine.
+
+## Deploy to Vercel
+
+The repository is pre-configured for Vercel (`vercel.json` + `api/index.mjs`): the React app is served
+as static files and the whole Express API runs as one serverless function.
+
+1. In the Vercel dashboard choose **Add New → Project → Import** and pick the `HRMS-Demo` GitHub
+   repository (install the Vercel GitHub app on the account/org if it asks).
+2. Leave the detected settings as they are: Framework **Other**, build command `npm run build`,
+   output directory `client/dist`, install command `npm install`. Node.js version **22.x**
+   (Project → Settings → General → Node.js Version) — the server uses Node's built-in SQLite.
+3. Click **Deploy**. Every push to `main` redeploys automatically; pull requests get preview URLs.
+
+No environment variables are required for the demo. Optional ones: `HRMS_TZ_OFFSET_MINUTES`
+(default 330) and, if the runtime is older than Node 22.13, `NODE_OPTIONS=--experimental-sqlite`.
+
+**Demo-mode storage caveat.** Vercel functions have no persistent disk, so on Vercel the SQLite
+database and uploaded files live in `/tmp`. They survive while an instance is warm and are
+**re-seeded with the demo data on every cold start** — ideal for demos and sales walkthroughs, not
+for customer data. For a persistent deployment either run `npm run build && npm run start:prod`
+on any host with a disk (Railway, Render, Fly.io, a VM, Docker), or swap the storage layer to a
+hosted database (Turso/libSQL or Postgres) and object storage (Vercel Blob / S3) — the data access
+is isolated in `server/src/db.ts` and the upload paths in `server/src/routes/documents.ts` and
+`employees.ts`.
 
 ## Tech stack
 

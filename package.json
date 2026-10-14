@@ -3,8 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "description": "HRMS Demo: a sellable, customisable HR management webapp (staff, documents, org tree, payroll, attendance with geofencing, leave, assets, employee journey)",
-  "workspaces": ["server", "client"],
-  "engines": { "node": ">=22.13" },
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client && npm run build -w server",
@@ -13,7 +18,8 @@
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
     "test": "npm run test -w server",
     "test:e2e": "playwright test -c e2e/playwright.config.ts",
-    "test:all": "npm run typecheck && npm test && npm run build && npm run test:e2e"
+    "test:all": "npm run typecheck && npm test && npm run build && npm run test:e2e",
+    "start:prod": "npm run start:prod -w server"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
