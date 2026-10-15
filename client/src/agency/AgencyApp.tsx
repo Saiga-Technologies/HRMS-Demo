@@ -6,6 +6,7 @@ import { useTour } from '../lib/tour';
 import { useTheme } from '../lib/theme';
 import { Avatar, Button } from '../components/ui';
 import { Icon } from '../components/Icons';
+import { BrandMark } from '../components/BrandMark';
 import Portfolio from './Portfolio';
 import AgencyCalendar from './AgencyCalendar';
 import ServiceDesk from './ServiceDesk';
@@ -56,8 +57,8 @@ export default function AgencyApp() {
       <div className={`sidebar-overlay ${sidebarOpen ? 'show' : ''}`} onClick={() => setSidebarOpen(false)} />
       <aside className={`sidebar ${pinned ? 'pinned' : ''} ${sidebarOpen ? 'open' : ''}`} data-tour="sidebar" aria-label="Agency navigation">
         <div className="brand">
-          <span className="brand-logo">S</span>
-          <span className="brand-name label">Agency portal</span>
+          <BrandMark size={36} variant="onDark" />
+          <span className="label agency-brand-text"><span className="brand-name">Saiga HR Services</span><small>Agency portal</small></span>
         </div>
         <nav className="nav">
           <div className="nav-group">

@@ -27,3 +27,6 @@
   .agency-app .user-role, .agency-app .user-name { display: none; }
   .agency-company-name { max-width: 120px; }
 }
+
+.agency-brand-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.agency-brand-text small { color: var(--sidebar-muted); font-size: 11.5px; }

@@ -1,4 +1,7 @@
 import PDFDocument from 'pdfkit';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { agency, companyDb, get } from '../db.js';
 import { runAsTenant } from '../context.js';
 import { HttpError, badRequest, notFound, nowIso, today, addDays, isIsoDate } from '../util.js';
@@ -462,6 +465,9 @@ export function invoiceFileName(inv: { number?: string | null; id: number }) {
 }
 const pct = (bp: number) => `${(bp / 100).toFixed(bp % 100 ? 2 : 0)}%`;
 
+/** Agency logo for the invoice letterhead (server/assets/logo.png; same path from src/ and dist/). */
+const LOGO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'assets', 'logo.png');
+
 export function buildInvoicePdf(id: number): Promise<Buffer> {
   const d = invoiceDetail(id);
   const e: any = d.entity;
@@ -478,12 +484,16 @@ export function buildInvoicePdf(id: number): Promise<Buffer> {
     const taxInvoice = ['IN_GST', 'AE_VAT', 'SA_VAT', 'AE_EXPORT'].includes(d.tax_scheme);
 
     // Letterhead
-    doc.font('Helvetica-Bold').fontSize(18).fillColor(brand).text(e.name, left, 48, { width: width * 0.6 });
+    const hasLogo = fs.existsSync(LOGO);
+    const textLeft = hasLogo ? left + 58 : left;
+    const textWidth = width * 0.6 - (textLeft - left);
+    if (hasLogo) doc.image(LOGO, left, 44, { fit: [48, 48] });
+    doc.font('Helvetica-Bold').fontSize(18).fillColor(brand).text(e.name, textLeft, 48, { width: textWidth });
     doc.font('Helvetica').fontSize(8.5).fillColor('#444444');
-    doc.text(e.legal_name, { width: width * 0.6 });
-    doc.text(e.address, { width: width * 0.6 });
-    doc.text(`${e.tax_label}: ${e.tax_id}${e.email ? '   ·   ' + e.email : ''}`, { width: width * 0.6 });
-    const headBottom = doc.y;
+    doc.text(e.legal_name, { width: textWidth });
+    doc.text(e.address, { width: textWidth });
+    doc.text(`${e.tax_label}: ${e.tax_id}${e.email ? '   ·   ' + e.email : ''}`, { width: textWidth });
+    const headBottom = Math.max(doc.y, hasLogo ? 96 : 0);
     doc.font('Helvetica-Bold').fontSize(16).fillColor('#111111').text(d.status === 'draft' ? 'DRAFT INVOICE' : taxInvoice ? 'TAX INVOICE' : 'INVOICE', left + width * 0.6, 48, { width: width * 0.4, align: 'right' });
     doc.font('Helvetica').fontSize(9).fillColor('#333333');
     const meta: [string, string][] = [['Invoice no.', d.number || 'Not issued'], ['Invoice date', fmtDate(d.issue_date)], ['Due date', fmtDate(d.due_date)], ['Service period', periodLabel(d.period)]];

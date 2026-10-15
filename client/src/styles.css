@@ -881,3 +881,10 @@ input[type='date'].input::-webkit-calendar-picker-indicator:hover, input[type='d
   .output-file { flex-direction: column; }
   .output-file-wait { align-items: flex-start; text-align: left; }
 }
+
+/* Agency logo mark (components/BrandMark.tsx). */
+.brand-mark { display: inline-flex; flex: none; align-items: center; justify-content: center; }
+.brand-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.brand-mark-auto .brand-mark-dark { display: none; }
+:root[data-theme='dark'] .brand-mark-auto .brand-mark-light { display: none; }
+:root[data-theme='dark'] .brand-mark-auto .brand-mark-dark { display: block; }

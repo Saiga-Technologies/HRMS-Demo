@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Icon } from '../components/Icons';
+import { BrandMark } from '../components/BrandMark';
 
 interface CompanyLite { id: number; slug: string; name: string; country_code: string; status: string; logo_text: string | null; brand_color: string | null }
 export const FLAG: Record<string, string> = { IN: 'India', AE: 'UAE', SA: 'KSA', QA: 'Qatar', US: 'USA' };
@@ -29,7 +30,7 @@ export default function AgencyBar() {
   return (
     <div className="agency-bar" ref={ref} data-tour="agency-bar">
       <button className="agency-back" onClick={() => window.location.assign('/agency')} title="Back to the agency portfolio" data-testid="agency-portfolio">
-        <Icon name="grid" size={15} /> <span className="hide-sm">Portfolio</span>
+        <BrandMark size={18} /> <span className="hide-sm">Portfolio</span>
       </button>
       <button className="agency-company" onClick={() => setOpen((o) => !o)} data-testid="company-switcher" aria-expanded={open}>
         <span className="agency-logo" style={{ background: companyRef?.brand_color || 'var(--brand)' }}>{companyRef?.logo_text || companyRef?.name?.[0] || '?'}</span>

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, companyFromPath } from '../lib/api';
 import { useFetch } from '../components/ui';
+import { BrandMark } from '../components/BrandMark';
 import { Button, Field, Input } from '../components/ui';
 
 const DEMO = [
@@ -51,7 +52,7 @@ export default function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="brand large">
-          <span className="brand-logo">{company.logo_text || 'H'}</span>
+          <BrandMark size={52} />
           <div>
             <div className="brand-name">{company.name || 'HRMS'}</div>
             <small>{company.tagline || 'Human resource management'}</small>
