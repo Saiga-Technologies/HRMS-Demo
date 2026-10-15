@@ -116,6 +116,8 @@ button { font: inherit; }
 .nav-link { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: var(--sidebar-ink); font-weight: 500; position: relative; white-space: nowrap; }
 .nav-link:hover { background: var(--sidebar-hover); text-decoration: none; color: #fff; }
 .nav-link.active { background: var(--brand); color: #fff; }
+/* Long labels never spill out of the sidebar: truncate with an ellipsis (the link's title shows the full name). */
+.nav-link .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nav-icon { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 11.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .sidebar:not(:hover):not(.pinned):not(.open) .nav-badge { position: absolute; top: 4px; right: 6px; margin: 0; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }

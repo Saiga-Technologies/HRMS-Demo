@@ -21,9 +21,9 @@ export const openCompany = (slug: string, path = '/') => window.location.assign(
 /** Follow an alert/event link: agency pages stay in the portal, company pages open the company. */
 export const followLink = (slug: string, link: string, navigate: (to: string) => void) => (link.startsWith('/agency') ? navigate(link) : openCompany(slug, link));
 
-const NAV = [
+const NAV: { to: string; label: string; title?: string; icon: string; end?: boolean; badge?: string }[] = [
   { to: '/agency', label: 'Portfolio', icon: 'grid', end: true },
-  { to: '/agency/calendar', label: 'Payroll & compliance calendar', icon: 'calendar' },
+  { to: '/agency/calendar', label: 'Calendar', title: 'Payroll & compliance calendar', icon: 'calendar' },
   { to: '/agency/requests', label: 'Service desk', icon: 'heartHandshake', badge: 'requests' },
   { to: '/agency/billing', label: 'Billing', icon: 'banknote', badge: 'billing' },
   { to: '/agency/team', label: 'Agency team', icon: 'users' },
@@ -66,7 +66,7 @@ export default function AgencyApp() {
             {NAV.map((i) => {
               const n = i.badge ? badges[i.badge] : 0;
               return (
-                <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} data-nav={i.to} title={i.label}>
+                <NavLink key={i.to} to={i.to} end={i.end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} data-nav={i.to} title={i.title || i.label}>
                   <span className="nav-icon" aria-hidden><Icon name={i.icon} size={19} /></span>
                   <span className="label">{i.label}</span>
                   {n ? <span className="nav-badge">{n > 99 ? '99+' : n}</span> : null}
