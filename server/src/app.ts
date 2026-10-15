@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { getDb } from './db.js';
 import crypto from 'node:crypto';
 import { attachUser, statelessSessions } from './auth.js';
+import { tenancy } from './tenancy.js';
+import agencyRoutes from './routes/agency.js';
+import serviceRoutes from './routes/services.js';
+import './seed.js'; // registers the demo-company initializer
 import { HttpError } from './util.js';
 import authRoutes from './routes/auth.js';
 import settingsRoutes from './routes/settings.js';
@@ -61,6 +65,7 @@ export function createApp() {
     next();
   });
 
+  app.use(tenancy);
   app.use(attachUser);
 
   const instanceId = crypto.randomBytes(4).toString('hex');
@@ -89,6 +94,8 @@ export function createApp() {
   app.use('/api/roster', rosterRoutes);
   app.use('/api/integrations', integrationRoutes);
   app.use('/api/public', publicRoutes);
+  app.use('/api/agency', agencyRoutes);
+  app.use('/api/services', serviceRoutes);
 
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route' }));
 

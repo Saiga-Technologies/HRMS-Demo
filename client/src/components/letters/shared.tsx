@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api } from '../../lib/api';
+import { api, apiUrl } from '../../lib/api';
 import { fmtDate, fmtDateTime } from '../../lib/format';
 import { Badge, Button, Field, Input, KeyValue, Modal, Spinner, Textarea, downloadUrl, useFetch, useToast } from '../ui';
 import { Icon } from '../Icons';
@@ -141,7 +141,7 @@ export function LetterDetailModal({ id, onClose, actions }: { id: number; onClos
             </div>
           ) : null}
           {l.status === 'generated' && l.pdf_stored_name ? (
-            <iframe className="doc-preview" src={`/api/letters/${l.id}/pdf`} title={l.title} data-testid="letter-pdf" />
+            <iframe className="doc-preview" src={apiUrl(`/api/letters/${l.id}/pdf`)} title={l.title} data-testid="letter-pdf" />
           ) : l.body_rendered ? (
             <LetterPaper title={l.title} body={l.body_rendered} refNo={letterRef(l)} />
           ) : (

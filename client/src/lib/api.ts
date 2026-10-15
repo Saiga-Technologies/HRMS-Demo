@@ -9,7 +9,23 @@ export class ApiError extends Error {
   }
 }
 
+/** Company slug when the browser is inside a company as agency staff (`/c/<slug>/...`). */
+export function companyFromPath(): string | null {
+  const m = window.location.pathname.match(/^\/c\/([a-z0-9][a-z0-9-]*)(\/|$)/);
+  return m ? m[1] : null;
+}
+/**
+ * Route an API path to the current company: under `/c/<slug>/` every `/api/...` call becomes
+ * `/api/c/<slug>/...` (agency staff working in a client company). Use for <img>/<iframe> URLs too.
+ */
+export function apiUrl(url: string): string {
+  const slug = companyFromPath();
+  if (slug && url.startsWith('/api/') && !url.startsWith('/api/c/') && !url.startsWith('/api/agency')) return `/api/c/${slug}${url.slice(4)}`;
+  return url;
+}
+
 async function request<T>(method: string, url: string, body?: any, opts: { form?: boolean } = {}): Promise<T> {
+  url = apiUrl(url);
   const headers: Record<string, string> = { Accept: 'application/json' };
   let payload: any = undefined;
   if (body instanceof FormData) payload = body;

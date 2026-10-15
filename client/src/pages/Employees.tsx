@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, qs } from '../lib/api';
+import { api, qs, apiUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour } from '../lib/tour';
 import { fmtDate, fullName, label } from '../lib/format';
@@ -115,7 +115,7 @@ export default function Employees() {
             {
               key: 'name', header: 'Employee', render: (e) => (
                 <span className="row" style={{ flexWrap: 'nowrap' }}>
-                  <Avatar name={fullName(e)} src={e.photo_path ? `/api/employees/${e.id}/photo` : null} size={34} color={e.department_color || undefined} />
+                  <Avatar name={fullName(e)} src={e.photo_path ? apiUrl(`/api/employees/${e.id}/photo`) : null} size={34} color={e.department_color || undefined} />
                   <span>
                     <strong>{fullName(e)}</strong>
                     <div className="muted mono">{e.employee_code}</div>

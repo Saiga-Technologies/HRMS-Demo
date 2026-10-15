@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import crypto from 'node:crypto';
-import { all, get, insert, update, run, parseJsonAll, parseJson } from '../db.js';
+import { all, get, insert, update, run, parseJsonAll, parseJson, currentCompanySlug } from '../db.js';
 import { requireHr } from '../auth.js';
 import { wrap, badRequest, notFound, audit, toInt, nowIso, today } from '../util.js';
 
@@ -125,8 +125,9 @@ r.post('/keys', requireHr, wrap(async (req, res) => {
   const name = String(req.body?.name || '').trim().slice(0, 80);
   if (!name) throw badRequest('name is required');
   const scopes = cleanScopes(req.body?.scopes ?? ['candidates:write']);
-  const key = `hrms_${crypto.randomBytes(24).toString('base64url')}`;
-  const id = insert('api_keys', { name, key_prefix: key.slice(0, 12), key_hash: hashKey(key), scopes: JSON.stringify(scopes), active: 1, created_by: req.user!.id, created_at: nowIso() });
+  // The company slug is part of the key so the public API can route it to the right company.
+  const key = `hrms_${currentCompanySlug()}_${crypto.randomBytes(24).toString('base64url')}`;
+  const id = insert('api_keys', { name, key_prefix: key.slice(0, key.indexOf('_', 5) + 7), key_hash: hashKey(key), scopes: JSON.stringify(scopes), active: 1, created_by: req.user!.id, created_at: nowIso() });
   audit(req, 'create', 'api_key', id, { name, scopes });
   res.status(201).json({ ...keyRows().find((k) => k.id === id), key });
 }));

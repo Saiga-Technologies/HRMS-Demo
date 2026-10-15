@@ -98,7 +98,8 @@ describe('integrations', () => {
     expect(created.body.key_hash).toBeUndefined();
     const listed = (await request(app).get('/api/integrations').set(auth(t))).body.keys.find((k: any) => k.id === created.body.id);
     expect(listed.key).toBeUndefined();
-    expect(listed.key_prefix).toBe(key.slice(0, 12));
+    expect(key.startsWith(listed.key_prefix)).toBe(true);
+    expect(key).toMatch(/^hrms_acme_/);
 
     expect((await request(app).post('/api/public/v1/candidates').send({ first_name: 'X' })).status).toBe(401);
     expect((await request(app).get('/api/public/v1/jobs').set('X-API-Key', key)).status).toBe(403);

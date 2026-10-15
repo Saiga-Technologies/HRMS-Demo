@@ -1,9 +1,17 @@
 import { Router } from 'express';
-import { all, get, insert, update, run, getSetting, setSetting, parseJsonAll } from '../db.js';
+import { all, get, insert, update, run, getSetting, setSetting, parseJsonAll, agency } from '../db.js';
 import { requireAuth, requireHr, hashPassword } from '../auth.js';
 import { wrap, badRequest, notFound, pick, requireFields, audit, toInt } from '../util.js';
 
 const r = Router();
+
+/** The agency's name / palette (agency settings), used on the sign-in page and the portfolio. */
+export function agencyBranding() {
+  const row = agency.get<any>("SELECT value FROM agency_settings WHERE key = 'agency'");
+  let a: any = {};
+  try { a = JSON.parse(row?.value || '{}'); } catch { /* ignore */ }
+  return { name: a.name || 'HR Agency', tagline: a.tagline || '', logo_text: a.logo_text || 'H', brand_color: a.brand_color || '#4A8F49', accent_color: a.accent_color || '#D9922E', default_theme: 'light', agency: true };
+}
 
 export const DEFAULT_COMPANY = {
   name: 'Acme Corp',
@@ -100,7 +108,9 @@ const KEYS: Record<string, any> = {
 };
 
 /** Public branding is needed on the login screen before authentication. */
-r.get('/public', (_req, res) => {
+r.get('/public', (req, res) => {
+  // Agency staff on the portfolio (no company open) get the agency's branding.
+  if (req.agencyUser && !req.companySlug) return res.json(agencyBranding());
   const c = getSetting('company', DEFAULT_COMPANY);
   res.json({ name: c.name, tagline: c.tagline, logo_text: c.logo_text, brand_color: c.brand_color, accent_color: c.accent_color, default_theme: c.default_theme });
 });

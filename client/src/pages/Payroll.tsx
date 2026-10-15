@@ -393,6 +393,8 @@ function RunDetail({ id, currency, onBack }: { id: number; currency: string; onB
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
   const run = useFetch<RunDetailData>(() => api.get(`/api/payroll/runs/${id}`), [id]);
+  // Agency-managed payroll: the client's HR approves the register, agency staff prepare and pay it.
+  const { isAgency } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
   const [skipped, setSkipped] = useState<Skipped[]>([]);
   const [view, setView] = useState<number | null>(null);
@@ -449,7 +451,9 @@ function RunDetail({ id, currency, onBack }: { id: number; currency: string; onB
           {r.status === 'processed' ? (
             <>
               <Button onClick={() => setStatus('draft', 'Run moved back to draft')} loading={busy === 'draft'} data-testid="payroll-to-draft">Back to draft</Button>
-              <Button variant="primary" onClick={() => setStatus('approved', 'Run approved — payslips released')} loading={busy === 'approved'} data-testid="payroll-approve">Approve</Button>
+              {isAgency
+                ? <span className="chip chip-info" data-testid="payroll-awaiting-client">Waiting for the client to approve</span>
+                : <Button variant="primary" onClick={() => setStatus('approved', 'Run approved — payslips released')} loading={busy === 'approved'} data-testid="payroll-approve">Approve</Button>}
             </>
           ) : null}
           {r.status === 'approved' ? (

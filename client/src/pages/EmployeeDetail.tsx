@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, qs } from '../lib/api';
+import { api, qs, apiUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour } from '../lib/tour';
 import { fmtDate, fmtDateTime, fmtMinutes, fmtMoney, fmtTime, fullName, label, todayIso } from '../lib/format';
@@ -80,7 +80,7 @@ export default function EmployeeDetail() {
   if (!emp) return <Spinner />;
 
   const name = fullName(emp);
-  const photoSrc = emp.photo_path ? `/api/employees/${emp.id}/photo?v=${photoVer}` : null;
+  const photoSrc = emp.photo_path ? apiUrl(`/api/employees/${emp.id}/photo?v=${photoVer}`) : null;
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'profile', label: 'Profile' },
     { key: 'documents', label: 'Documents', count: emp.documents?.length ?? 0 },

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/api';
+import { api, apiUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { fmtDate, fmtDateTime } from '../lib/format';
 import { Badge, Button, ExpiryDot, Field, Input, KeyValue, Modal, Select, StatusBadge, Textarea, useConfirm, useFetch, useForm, useToast, FileInput } from './ui';
@@ -67,7 +67,7 @@ export function fmtBytes(n?: number | null): string {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
-export const documentFileUrl = (id: number, download = false) => `/api/documents/${id}/file${download ? '?download=1' : ''}`;
+export const documentFileUrl = (id: number, download = false) => apiUrl(`/api/documents/${id}/file${download ? '?download=1' : ''}`);
 
 export function FormatBadge({ format }: { format?: string | null }) {
   const f = (format || '').toLowerCase();

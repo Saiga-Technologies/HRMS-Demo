@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getDb, get, all, insert, run, setSetting, transaction, UPLOAD_DIR } from './db.js';
+import { getDb, get, all, insert, run, setSetting, transaction, UPLOAD_DIR, companyDb, registerCompanyInitializer, DEFAULT_COMPANY_SLUG } from './db.js';
+import { runAsTenant } from './context.js';
+import { seedAgencyIfEmpty } from './seed/agency.js';
+import { DEMO_COMPANIES, demoCompany } from './seed/registry.js';
+import { seedDemoCompany } from './seed/generator.js';
+import { seedCompanyOps } from './ops/demoOps.js';
+import { seedBillingDemo } from './ops/billing.js';
 import { hashPassword } from './auth.js';
 import { nowIso, today, addDays } from './util.js';
 import { DEFAULT_COMPANY, DEFAULT_DOCUMENT_SETTINGS, DEFAULT_PAYROLL_SETTINGS, DEFAULT_ATTENDANCE_SETTINGS, DEFAULT_LEAVE_SETTINGS } from './routes/settings.js';
@@ -25,11 +31,35 @@ const JOURNEY_TEMPLATES = [
   ['Current role', 'Employee is active in their current role.', '#64748b', 'star'],
 ];
 
+// Demo companies are generated the first time their (empty) database is opened.
+registerCompanyInitializer((slug) => {
+  const def = demoCompany(slug);
+  if (def) runAsTenant({ slug, timezone: def.timezone }, () => { seedDemoCompany(def); seedCompanyOps(); });
+});
+
+/**
+ * Seed everything that is missing: the agency (staff, company registry, billing master data), the
+ * default company (the original Acme demo) and — unless HRMS_DEMO_COMPANIES=0 — the nine demo client
+ * companies. Returns true when the default company was freshly seeded.
+ */
 export function seedIfEmpty() {
-  getDb();
-  if (get('SELECT 1 FROM users LIMIT 1')) return false;
-  seed();
-  return true;
+  seedAgencyIfEmpty(undefined, DEMO_PASSWORD);
+  const fresh = runAsTenant({ slug: DEFAULT_COMPANY_SLUG, timezone: 'Asia/Kolkata' }, () => {
+    getDb();
+    if (get('SELECT 1 FROM users LIMIT 1')) return false;
+    seed();
+    return true;
+  });
+  if (fresh) runAsTenant({ slug: DEFAULT_COMPANY_SLUG, timezone: 'Asia/Kolkata' }, () => seedCompanyOps());
+  if (process.env.HRMS_DEMO_COMPANIES !== '0') {
+    seedDemoCompanies();
+    seedBillingDemo();
+  }
+  return fresh;
+}
+/** Open (and so generate) every demo company. */
+export function seedDemoCompanies() {
+  for (const c of DEMO_COMPANIES) companyDb(c.slug);
 }
 
 export function seed() {

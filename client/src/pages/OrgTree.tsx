@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, apiUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour } from '../lib/tour';
 import { DeptIcon } from '../components/DeptBadge';
@@ -206,7 +206,7 @@ export default function OrgTree() {
         >
           {n.type === 'employee' ? (
             <>
-              {options.photo ? <Avatar name={nameOf(n)} src={n.photo_path ? `/api/employees/${n.id}/photo` : undefined} size={36} color={color} /> : null}
+              {options.photo ? <Avatar name={nameOf(n)} src={n.photo_path ? apiUrl(`/api/employees/${n.id}/photo`) : undefined} size={36} color={color} /> : null}
               <div>
                 <div className="tree-name">{nameOf(n)} <span className="muted mono">{n.employee_code}</span></div>
                 {options.position ? <div className="tree-sub">{n.position_title || 'No position'}</div> : null}
@@ -340,7 +340,7 @@ export default function OrgTree() {
                   onClick={isHr ? () => setEditNode(e) : undefined}
                   style={{ borderLeftColor: '#94a3b8' }}
                 >
-                  {options.photo ? <Avatar name={nameOf(e)} src={e.photo_path ? `/api/employees/${e.id}/photo` : undefined} size={30} /> : null}
+                  {options.photo ? <Avatar name={nameOf(e)} src={e.photo_path ? apiUrl(`/api/employees/${e.id}/photo`) : undefined} size={30} /> : null}
                   <div>
                     <div className="tree-name">{nameOf(e)}</div>
                     <div className="tree-sub">{e.position_title || e.employee_code}</div>

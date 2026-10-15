@@ -255,8 +255,11 @@ r.post('/runs/:id/status', requireHr, wrap(async (req, res) => {
   const next = req.body.status;
   const allowed: Record<string, string[]> = { draft: ['processed'], processed: ['approved', 'draft'], approved: ['paid', 'processed'], paid: [] };
   if (!allowed[run_.status]?.includes(next)) throw badRequest(`Cannot move a ${run_.status} run to ${next}`);
+  // Agency-managed payroll: the client's HR approves the register; agency staff prepare and pay.
+  const cal = { client_approval_required: true, ...getSetting<any>('payroll', {}) };
+  if (next === 'approved' && req.agencyUser && cal.client_approval_required) throw forbidden('The client approves the payroll register. Ask their HR to approve it from Payroll → Runs.');
   const data: any = { status: next };
-  if (next === 'approved') data.approved_at = nowIso();
+  if (next === 'approved') { data.approved_at = nowIso(); data.approved_by = req.user!.id; }
   if (next === 'paid') { data.paid_at = nowIso(); run("UPDATE payslips SET status = 'paid' WHERE run_id = ?", [id]); }
   update('payroll_runs', id, data);
   audit(req, 'status', 'payroll_run', id, { status: next });

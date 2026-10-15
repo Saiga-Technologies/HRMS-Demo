@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from './api';
+import { api, companyFromPath } from './api';
 import { useAuth } from './auth';
 
 /**
@@ -12,18 +12,20 @@ interface Ctx { counts: Counts; refreshCounts: () => Promise<void>; loaded: bool
 const NotificationsCtx = createContext<Ctx>({ counts: {}, refreshCounts: async () => {}, loaded: false });
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isAgency } = useAuth();
+  // Agency staff on the portfolio have no company counters (they get /api/agency/alerts instead).
+  const companyScope = !isAgency || !!companyFromPath();
   const [counts, setCounts] = useState<Counts>({});
   const [loaded, setLoaded] = useState(false);
   const inFlight = useRef<Promise<void> | null>(null);
   const refreshCounts = useCallback(async () => {
-    if (!user) return;
+    if (!user || !companyScope) return;
     if (inFlight.current) return inFlight.current;
     inFlight.current = api.get<{ counts: Counts }>('/api/notifications/counts').then((r) => { setCounts(r.counts); setLoaded(true); }).catch(() => {}).finally(() => { inFlight.current = null; });
     return inFlight.current;
-  }, [user?.id]);
+  }, [user?.id, companyScope]);
   useEffect(() => {
-    if (!user) { setCounts({}); setLoaded(false); return; }
+    if (!user || !companyScope) { setCounts({}); setLoaded(false); return; }
     refreshCounts();
     const t = setInterval(refreshCounts, 30000);
     const onFocus = () => refreshCounts();

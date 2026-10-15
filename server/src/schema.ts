@@ -746,6 +746,63 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   attempted_at TEXT NOT NULL
 );
 
+/* ---------------- Agency mode: per-company operations ---------------- */
+-- Manual payroll checkpoints per period (inputs received, attendance locked); the rest are derived from payroll_runs.
+CREATE TABLE IF NOT EXISTS payroll_checkpoints (
+  period TEXT NOT NULL,
+  key TEXT NOT NULL,                        -- inputs_received | attendance_locked
+  done_at TEXT NOT NULL,
+  done_by_name TEXT,
+  note TEXT,
+  PRIMARY KEY (period, key)
+);
+
+-- Statutory filings generated from the company's country rules (compliance.ts).
+CREATE TABLE IF NOT EXISTS compliance_filings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL,                       -- rule code, e.g. IN_PF_ECR
+  name TEXT NOT NULL,
+  authority TEXT,
+  frequency TEXT NOT NULL,                  -- monthly | quarterly | half_yearly | annual
+  period TEXT NOT NULL,                     -- YYYY-MM, YYYY-Qn, YYYY-H1, YYYY
+  due_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','filed','not_applicable')),
+  amount REAL,
+  reference TEXT,
+  filed_at TEXT,
+  filed_by_name TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE (code, period)
+);
+
+-- Client ↔ agency service desk.
+CREATE TABLE IF NOT EXISTS service_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  number TEXT NOT NULL UNIQUE,
+  category TEXT NOT NULL,                   -- payroll | onboarding | exit | letters | compliance | attendance | other
+  subject TEXT NOT NULL,
+  description TEXT,
+  priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent')),
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','waiting_client','resolved','closed')),
+  raised_by_user INTEGER,
+  raised_by_name TEXT,
+  assignee_name TEXT,
+  assignee_agency_user_id INTEGER,
+  due_at TEXT,                              -- SLA deadline
+  resolved_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS service_request_comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  request_id INTEGER NOT NULL REFERENCES service_requests(id) ON DELETE CASCADE,
+  author_name TEXT NOT NULL,
+  author_side TEXT NOT NULL CHECK (author_side IN ('client','agency')),
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_candidates_vacancy ON candidates(vacancy_id, stage);
 CREATE INDEX IF NOT EXISTS idx_reviews_cycle ON reviews(cycle_id, employee_id);
 CREATE INDEX IF NOT EXISTS idx_placements_client ON placements(client_id, status);
@@ -765,4 +822,6 @@ export const COLUMN_MIGRATIONS: [string, string, string][] = [
   ['employees', 'candidate_id', 'INTEGER'],
   ['vacancies', 'hired_count', 'INTEGER NOT NULL DEFAULT 0'],
   ['departments', 'icon', 'TEXT'],                                                // icon name shown in the department badge
+  ['users', 'agency_user_id', 'INTEGER'],                                         // set on agency staff's in-company shadow user
+  ['payroll_runs', 'approved_by', 'INTEGER'],                                     // user who approved the payroll register
 ];

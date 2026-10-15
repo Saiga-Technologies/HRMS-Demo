@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { apiUrl } from '../lib/api';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useTour } from '../lib/tour';
@@ -6,10 +7,11 @@ import { useTheme } from '../lib/theme';
 import { useCounts } from '../lib/notifications';
 import { Button, Avatar } from './ui';
 import { Icon } from './Icons';
+import AgencyBar from '../agency/AgencyBar';
 
 interface NavItem { to: string; label: string; icon: string; roles?: ('hr' | 'manager' | 'employee')[]; badge?: string; employeeLabel?: string }
 const NAV: { group: string; items: NavItem[] }[] = [
-  { group: 'Overview', items: [{ to: '/', label: 'Dashboard', icon: 'dashboard' }] },
+  { group: 'Overview', items: [{ to: '/', label: 'Dashboard', icon: 'dashboard' }, { to: '/services', label: 'Agency services', icon: 'heartHandshake', roles: ['hr'], badge: 'nav_services' }] },
   {
     group: 'People',
     items: [
@@ -45,7 +47,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
 ];
 
 export default function Layout() {
-  const { user, company, logout } = useAuth();
+  const { user, company, logout, isAgency } = useAuth();
   const { start, steps, pageName } = useTour();
   const { theme, toggle } = useTheme();
   const { counts } = useCounts();
@@ -110,6 +112,7 @@ export default function Layout() {
       <div className={`main ${pinned ? 'pinned' : ''}`}>
         <header className="topbar">
           <button className="icon-btn menu-toggle" onClick={() => setSidebarOpen((o) => !o)} aria-label="Toggle navigation"><Icon name="menu" /></button>
+          {isAgency ? <AgencyBar /> : null}
           <div className="topbar-spacer" />
           <Button variant="primary" size="sm" onClick={start} data-tour="tour-button" data-testid="tour-button" title={steps.length ? `Guided tour of ${pageName}` : 'Guided tour of the app'}>
             <Icon name="sparkles" size={15} /> Tour this page
@@ -123,7 +126,7 @@ export default function Layout() {
           </button>
           <div className="user-menu">
             <button className="user-btn" onClick={() => setMenuOpen((o) => !o)} data-testid="user-menu">
-              <Avatar name={name} src={user.employee_id && user.photo_path ? `/api/employees/${user.employee_id}/photo` : null} size={30} />
+              <Avatar name={name} src={user.employee_id && user.photo_path ? apiUrl(`/api/employees/${user.employee_id}/photo`) : null} size={30} />
               <span className="user-name">{name}</span>
               <span className="user-role">{role}</span>
             </button>
@@ -140,7 +143,7 @@ export default function Layout() {
                   <input type="checkbox" checked={autoTour} onChange={(e) => { setAutoTour(e.target.checked); try { localStorage.setItem('hrms:auto-tour', e.target.checked ? '1' : '0'); } catch { /* ignore */ } }} />
                   Auto-start tours on first visit
                 </label>
-                <button className="danger" onClick={() => logout().then(() => navigate('/login'))} data-testid="logout"><Icon name="logout" size={15} /> Sign out</button>
+                <button className="danger" onClick={() => logout().then(() => (isAgency ? window.location.assign('/login') : navigate('/login')))} data-testid="logout"><Icon name="logout" size={15} /> Sign out</button>
               </div>
             ) : null}
           </div>

@@ -1,3 +1,4 @@
+import { apiUrl } from '../../lib/api';
 export type Stage = 'new' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected' | 'withdrawn';
 export const STAGES: Stage[] = ['new', 'screening', 'interview', 'offer', 'hired', 'rejected', 'withdrawn'];
 /** Kanban columns (withdrawn candidates are shown in the Rejected column). */
@@ -88,4 +89,4 @@ export interface RecruitmentSummary { stages: Record<Stage, number>; total: numb
 export interface HireDefaults { candidate_id: number; first_name: string; last_name: string; email: string; phone: string; position_id: number | null; department_id: number | null; manager_id: number | null; employment_type: string; employee_code: string; join_date: string; status: string; vacancy_id: number | null; vacancy_title: string | null; create_login: boolean; login_role: string; expected_salary?: number | null; notice_days?: number | null }
 
 export const candidateName = (c: { first_name: string; last_name?: string | null }) => [c.first_name, c.last_name].filter(Boolean).join(' ');
-export const cvUrl = (id: number, download = false) => `/api/recruitment/candidates/${id}/cv${download ? '?download=1' : ''}`;
+export const cvUrl = (id: number, download = false) => apiUrl(`/api/recruitment/candidates/${id}/cv${download ? '?download=1' : ''}`);

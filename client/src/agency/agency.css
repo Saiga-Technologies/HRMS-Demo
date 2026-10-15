@@ -1,0 +1,29 @@
+/* Agency portal shell + the in-company agency bar. Theme variables only. */
+.agency-bar { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.agency-back, .agency-company { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 10px; padding: 5px 10px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; min-width: 0; }
+.agency-back:hover, .agency-company:hover { border-color: var(--brand); color: var(--brand); }
+.agency-company-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.agency-logo { width: 24px; height: 24px; border-radius: 7px; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; flex: none; }
+.agency-logo.sm { width: 22px; height: 22px; font-size: 11px; }
+.agency-logo.lg { width: 40px; height: 40px; font-size: 17px; border-radius: 10px; }
+.agency-acting { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--warning-ink); background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+.agency-switcher { left: 0; right: auto; top: calc(100% + 6px); width: 320px; padding: 8px; }
+.agency-switcher .input { margin-bottom: 6px; }
+.agency-switcher-list { max-height: 360px; overflow: auto; display: flex; flex-direction: column; }
+.agency-switcher-list button { display: flex; align-items: center; gap: 10px; width: 100%; }
+.agency-switcher-list button.active { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+
+.agency-alerts { width: 380px; right: 0; max-width: calc(100vw - 24px); }
+.agency-alerts-list { max-height: 420px; overflow: auto; display: flex; flex-direction: column; }
+.agency-alert { display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%; }
+.agency-alert-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; background: var(--info); }
+.agency-alert.sev-critical .agency-alert-dot { background: var(--danger); }
+.agency-alert.sev-warning .agency-alert-dot { background: var(--warning); }
+.agency-alert-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.agency-alert-body strong { font-size: 13px; }
+.agency-alert-body small { color: var(--muted); font-size: 12px; }
+@media (max-width: 700px) {
+  .hide-sm { display: none !important; }
+  .agency-app .user-role, .agency-app .user-name { display: none; }
+  .agency-company-name { max-width: 120px; }
+}

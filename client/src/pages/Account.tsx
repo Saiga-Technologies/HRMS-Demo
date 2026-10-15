@@ -3,9 +3,12 @@ import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour } from '../lib/tour';
 import { Button, Card, Field, Input, PageHeader, useToast } from '../components/ui';
+import { useNavigate } from 'react-router-dom';
 
 export default function Account() {
   const { user, refresh } = useAuth();
+  const navigate = useNavigate();
+  const mustChange = !!user?.must_change_password;
   const toast = useToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -23,6 +26,7 @@ export default function Account() {
       toast.success('Password updated');
       setCurrent(''); setNext(''); setConfirm('');
       await refresh();
+      if (mustChange) navigate('/', { replace: true });
     } catch (err) {
       toast.error(err);
     } finally {
@@ -32,6 +36,7 @@ export default function Account() {
   return (
     <>
       <PageHeader title="My account" subtitle={user?.email} />
+      {mustChange ? <div className="alert alert-warning" style={{ marginBottom: 16 }} data-testid="must-change-password">You signed in with a temporary password. Choose your own password to continue.</div> : null}
       <Card title="Change password" tour="password-form" className="narrow">
         <form onSubmit={submit} className="stack">
           <Field label="Current password" required><Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" required /></Field>
