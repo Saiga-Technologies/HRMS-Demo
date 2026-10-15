@@ -28,7 +28,7 @@ export function LocationsTab() {
       {dialog}
       <div className="toolbar">
         <span className="muted">Employees must punch within the radius of an active office unless remote punch is allowed in Settings.</span>
-        <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEdit({ radius_m: 150, active: 1 })} data-testid="location-add">+ Add location</Button>
+        <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEdit({ radius_m: 150, active: 1 })} data-testid="location-add" data-tour="att-location-add">+ Add location</Button>
       </div>
       <Card padded={false} tour="att-locations">
         <Table<WorkLocation>
@@ -123,7 +123,7 @@ export function ShiftsTab() {
       {dialog}
       <div className="toolbar">
         <span className="muted">Shifts drive late marks, half/full day thresholds and working days. Assign a shift on the employee profile.</span>
-        <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEdit({})} data-testid="shift-add">+ Add shift</Button>
+        <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEdit({})} data-testid="shift-add" data-tour="att-shift-add">+ Add shift</Button>
       </div>
       <Card padded={false} tour="att-shifts">
         <Table<Shift>
@@ -232,7 +232,7 @@ export function HolidaysTab() {
     <>
       {dialog}
       <div className="toolbar">
-        <Select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year" data-testid="holiday-year">{years.map((y) => <option key={y} value={y}>{y}</option>)}</Select>
+        <Select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year" data-testid="holiday-year" data-tour="att-holiday-year">{years.map((y) => <option key={y} value={y}>{y}</option>)}</Select>
         <span className="muted">{list.data?.length ?? 0} holidays · optional holidays still count as working days for leave.</span>
       </div>
       {isHr ? (

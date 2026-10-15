@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
-import { fmtDate, fmtMinutes, fmtMoney, fmtTime, fullName } from '../lib/format';
+import { usePageTour, type TourStep } from '../lib/tour';
+import { fmtDate, fmtMinutes, fmtMoney, fmtTime, fullName, todayIso } from '../lib/format';
 import { Button, Card, EmptyState, ExpiryDot, Field, Input, Modal, PageHeader, Select, Stat, Textarea, useFetch, useToast, Badge } from '../components/ui';
 import { BarChart, DonutChart, LineChart, Heatmap, Gauge, CHART_COLORS, type Datum } from '../components/charts';
 import { Icon } from '../components/Icons';
@@ -13,15 +13,89 @@ type CardSize = 'sm' | 'md' | 'lg';
 interface CardDef { id: number; type: CardType; title: string; config: any; size: CardSize; sort_order: number }
 interface CatalogItem { type: CardType; key: string; title: string; category: string; icon: string; size: CardSize; chart?: string; description?: string }
 
-const TOUR = [
-  { element: '[data-tour="dash-header"]', title: 'Your dashboard', description: 'A live, role-aware overview: HR sees the company, managers their reporting chain, employees themselves.' },
-  { element: '[data-tour="dash-grid"]', title: 'Charts you can click', description: 'Every chart is a shortcut. Click a bar, slice, day or row to open the matching page with the right filters applied.' },
-  { element: '[data-tour="dash-insight"]', title: 'Insights', description: 'Short captions under each chart call out what changed — late arrivals vs last week, documents expiring this week, and more.' },
-  { element: '[data-tour="dash-add"]', title: 'Add cards without limits', description: 'Pick from the catalog: stats, charts, lists, quick links or notes, grouped by area. There is no cap on the number of cards.' },
-  { element: '[data-tour="dash-card-menu"]', title: 'Arrange and resize', description: 'Drag cards to reorder them. Use the ⋯ menu to resize (small, medium, large), rename or remove a card.' },
-  { element: '[data-tour="dash-reset"]', title: 'Reset layout', description: 'Go back to the recommended layout for your role at any time.' },
-  { element: '[data-tour="tour-button"]', title: 'Tour any page', description: 'Every page has a "Tour this page" button that walks you through what is on screen.' },
-];
+/**
+ * Tour text for every card the catalog can produce (keyed by config.key, or by type for notes / custom
+ * link cards). The dashboard tour is built from the cards actually on the user's dashboard, in their order.
+ */
+const CARD_TOUR: Record<string, { title: string; description: string }> = {
+  // stats
+  headcount: { title: 'Headcount', description: 'Active employees in your scope: the whole company for HR, you and your reporting chain for managers. Click it to open the Employees directory.' },
+  present_today: { title: 'Present today', description: 'How many have punched in today, with late arrivals and people on leave underneath. Click it for the daily attendance roster.' },
+  on_leave_today: { title: 'On leave today', description: 'People on approved leave today. Click it to open the leave calendar.' },
+  pending_leaves: { title: 'Pending leave approvals', description: 'Leave requests waiting for your decision. Amber means something is waiting, green means the queue is clear. Click it to go straight to leave approvals.' },
+  pending_corrections: { title: 'Attendance appeals', description: 'Missed-punch and correction appeals waiting for you. Click it to open the corrections queue in Attendance.' },
+  comp_off_pending: { title: 'Comp-off approvals', description: 'Comp-off credits for extra days worked that need your approval. Click it to open the comp-off tab in Leave.' },
+  travel_km_this_month: { title: 'Travel this month', description: 'Kilometres logged on completed trips this month. Click it for the travel log in Attendance.' },
+  expiring_documents: { title: 'Documents expiring', description: 'Documents expiring soon (only your own for employees). It turns amber when something needs attention. Click it to open the Expiring list in Documents.' },
+  open_vacancies: { title: 'Open vacancies', description: 'Vacancies currently open for hiring. Click it to open the recruitment pipeline.' },
+  assets_assigned: { title: 'Assets assigned', description: 'Company assets currently handed out to employees. Click it to open Assets.' },
+  payroll_last_net: { title: 'Last payroll net', description: 'Net pay of the latest payroll run, with its period and status underneath. Click it to open payroll runs.' },
+  my_leave_balance: { title: 'My leave balance', description: 'Days you can still take, with a per-type breakdown underneath. Click it to open Leave and apply.' },
+  my_hours_this_month: { title: 'My hours this month', description: 'Hours you have worked this month, worked out from your punches. Click it to open your attendance.' },
+  my_payslip_requests: { title: 'My payslip requests', description: 'Payslip requests still pending with HR. Click it to request a payslip or follow up on one.' },
+  // charts
+  today_attendance: { title: "Today's attendance", description: 'Present, late, on leave, absent and not yet in, with the punch-in rate in the middle. Click a slice to open today\'s roster filtered to that status.' },
+  attendance_trend: { title: 'Attendance trend', description: 'Present, late and absent per working day over the last 30 working days. Click a day to open that day\'s attendance roster.' },
+  late_comers: { title: 'Late comers', description: 'Who was late most often this month; red bars mean five or more late days. Click a bar to open that person\'s late-comers report.' },
+  work_hours_distribution: { title: 'Work hours distribution', description: 'Employees grouped by their average daily hours this month. Click a bar to see who is in that group in the attendance reports.' },
+  headcount_by_department: { title: 'Headcount by department', description: 'Team sizes side by side. Click a bar to open Employees filtered to that department.' },
+  headcount_trend: { title: 'Joins vs exits', description: 'Joiners and leavers per month for the last 12 months. Click the chart to open the Employees directory.' },
+  gender_diversity: { title: 'Gender diversity', description: 'The gender split of your scope. Click a slice to list those employees.' },
+  tenure_distribution: { title: 'Tenure distribution', description: 'How long people have been with the company, from under a year to 5+ years. Click a bar to list the employees in that band.' },
+  leave_utilisation: { title: 'Leave utilisation', description: 'Days used against days allocated for each leave type this year. Click a row to open leave balances.' },
+  leave_calendar_heat: { title: 'Who is away', description: 'The next 14 days; darker squares mean more people away. Click a day to open the leave calendar on that date.' },
+  payroll_cost_trend: { title: 'Payroll cost trend', description: 'Gross and net pay for the last six payroll runs. Click a point to open that run.' },
+  payroll_by_department: { title: 'Payroll by department', description: 'Gross pay of the latest processed run split by department. Click it to open that run.' },
+  document_compliance: { title: 'Document compliance', description: 'Required documents that are valid, expiring, critical, expired or missing; the middle shows the share that is valid. Click a slice to open the matching list in Documents.' },
+  recruitment_funnel: { title: 'Recruitment funnel', description: 'Candidates at each pipeline stage from new to hired, plus open vacancies. Click a stage to open the pipeline filtered to it.' },
+  time_to_hire: { title: 'Time to hire', description: 'The gauge shows the average days from application to accepted offer (amber above 45); the bars show hires per month. Click it to see hired candidates.' },
+  journey_progress: { title: 'Journey progress', description: 'Average onboarding journey completion and how many people sit at each stage. Click it to open Employee journey.' },
+  asset_utilisation: { title: 'Asset utilisation', description: 'Assets assigned, available, in maintenance or retired; the middle shows the share in use. Click a slice to list assets with that status.' },
+  my_week: { title: 'My week', description: 'Your hours for the last seven days, coloured by status (present, half day, leave, absent), and whether you have punched in today. Click a day to open it in Attendance.' },
+  my_leave_balance_chart: { title: 'My leave balance chart', description: 'Available days per leave type. Long special entitlements such as maternity leave are listed in the caption instead. Click a type to open Leave with it selected.' },
+  // lists and others
+  approvals_queue: { title: 'Approvals queue', description: 'Everything waiting for your decision, grouped by kind: leave, attendance appeals, comp-off and payslip requests. Click a row to jump to that queue.' },
+  recent_joiners: { title: 'Recent joiners', description: 'The newest employees with their join date. Click a name to open the profile.' },
+  upcoming_birthdays: { title: 'Upcoming birthdays', description: 'Birthdays coming up soon. Click a name to open the profile.' },
+  expiring_documents_list: { title: 'Expiring documents list', description: 'The documents expiring next, with a coloured dot for how close they are (amber, orange, red when expired). Click a name to open that profile and upload a renewal.' },
+  pending_approvals: { title: 'Pending approvals', description: 'Individual leave and attendance requests waiting for you. Click a name to open the right approval queue.' },
+  upcoming_holidays: { title: 'Upcoming holidays', description: 'The next public holidays from the company holiday calendar.' },
+  journey_in_progress: { title: 'Journeys in progress', description: 'Employees still moving through onboarding, with their current stage and stages done. Click a name to open their journey.' },
+  my_recent_payslips: { title: 'My recent payslips', description: 'Your latest payslips with net pay and status. Click a period to open Payroll and download it.' },
+  quick_links: { title: 'Quick links', description: 'Shortcuts to everyday tasks: punch in, apply for leave, your documents and payslips. Change the links with the card menu, then Edit.' },
+  link: { title: 'Quick links', description: 'Shortcuts to everyday tasks. Change the links with the card menu, then Edit.' },
+  note: { title: 'Note card', description: 'A free-text note only you can see, such as reminders or a to-do list. Edit it with the card menu.' },
+};
+const cardTourKey = (c: CardDef) => (c.type === 'note' || (c.type === 'link' && !c.config?.key) ? c.type : c.config?.key || c.type);
+const TYPE_RANK: Record<CardType, number> = { stat: 0, chart: 1, list: 2, link: 3, note: 4 };
+
+function buildTour(list: CardDef[], firstChartId: number | undefined): TourStep[] {
+  const seen = new Set<string>();
+  const cardSteps: TourStep[] = [];
+  const ordered = [...list].map((c, i) => ({ c, i })).sort((a, b) => TYPE_RANK[a.c.type] - TYPE_RANK[b.c.type] || a.i - b.i).map((x) => x.c);
+  let statIntro = false, chartIntro = false, listIntro = false;
+  for (const c of ordered) {
+    const k = cardTourKey(c);
+    if (seen.has(k) || !CARD_TOUR[k]) continue;
+    seen.add(k);
+    if (c.type === 'stat' && !statIntro) { statIntro = true; cardSteps.push({ title: 'Stat tiles', description: 'The small tiles at the top are live numbers. Each one is a shortcut: click a tile to open the page behind it with the right filter applied. Here is what each of yours means.' }); }
+    if (c.type === 'chart' && !chartIntro) { chartIntro = true; cardSteps.push({ title: 'Charts you can click', description: 'Every chart is a shortcut too. Click a bar, slice, day or point to open the matching page with filters already set. Hover for exact numbers.' }); }
+    if ((c.type === 'list' || c.type === 'link' || c.type === 'note') && !listIntro) { listIntro = true; cardSteps.push({ title: 'Lists and shortcuts', description: 'List cards show the actual people and items behind the numbers, so you can act on them in one click.' }); }
+    cardSteps.push({ element: `[data-tour="dash-card-${k}"]`, ...CARD_TOUR[k] });
+    if (c.id === firstChartId) cardSteps.push({ element: '[data-tour="dash-insight"]', title: 'Insight line', description: 'Each chart (and the approvals queue) ends with a one-line insight that says what changed, such as late arrivals against last week or documents expiring this week. Amber or red means it needs a look.' });
+  }
+  return [
+    { title: 'Your dashboard', description: 'Your home page: live numbers, charts and lists for your role. The flow: 1) read the stat tiles, 2) use the charts and lists to drill into what needs attention, 3) arrange, resize and add cards so the page fits how you work.' },
+    { element: '[data-tour="dash-header"]', title: 'Greeting and scope', description: 'The line under your name shows the company, today\'s date and your scope: HR sees the company-wide view, managers their team, employees their personal view. Every card follows that scope.' },
+    ...cardSteps,
+    { element: '[data-tour="dash-card-menu"]', title: 'Card menu', description: 'Every card has this menu: Edit title / content (rename it, write a note, change quick links), resize it to small, medium or large, or remove it.' },
+    { element: '[data-tour="dash-grid"]', title: 'Drag to arrange', description: 'Drag any card and drop it on another to swap their places. Your layout is saved to your account, so it is the same on every device.' },
+    { element: '[data-tour="dash-add"]', title: 'Add cards', description: 'Opens the card catalog: search, or pick an area such as Attendance, Leave, Payroll or Personal, see a preview and choose a size. You can also add a note or a quick-links card. There is no limit on the number of cards.' },
+    { element: '[data-tour="dash-reset"]', title: 'Reset to your role\'s defaults', description: 'Puts back the recommended layout for your role. HR starts with company headcount, attendance, leave, documents, recruitment and payroll; managers with team attendance and approvals; employees with their week, leave balance, payslips and quick links.' },
+    { element: '[data-tour="tour-button"]', title: 'Tour any page', description: 'Every page has this button. Use it whenever you open a module for the first time.' },
+    { title: 'Where to go next', description: 'Use the cards as your daily to-do list: clear the approvals queue, follow up on late arrivals and expiring documents, then open the modules from the menu on the left for the full picture.' },
+  ];
+}
 
 const LINKS: Record<string, string> = {
   headcount: '/employees', present_today: '/attendance?tab=daily', on_leave_today: '/leave?tab=calendar', pending_leaves: '/leave?tab=approvals', pending_corrections: '/attendance?tab=corrections',
@@ -36,7 +110,6 @@ const CATEGORY_ORDER = ['Attendance', 'People', 'Leave', 'Payroll', 'Documents',
 const C = { ok: 'var(--success)', warn: '#f59e0b', bad: '#ef4444', info: '#06b6d4', muted: '#94a3b8', brand: 'var(--brand)', accent: 'var(--accent)', violet: '#8b5cf6' };
 
 export default function Dashboard() {
-  usePageTour('Dashboard', TOUR);
   const { user, company } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -96,6 +169,9 @@ export default function Dashboard() {
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   }, []);
   const firstChartId = list.find((c) => c.type === 'chart' || c.config?.key === 'approvals_queue')?.id;
+  const tour = useMemo(() => buildTour(list, firstChartId), [list, firstChartId]);
+  usePageTour('Dashboard', tour);
+  const tourKeys = new Set<string>();
   const scopeLabel = data.data?.scope === 'company' ? 'Company-wide view' : data.data?.scope === 'team' ? 'Your team' : 'Your personal view';
 
   return (
@@ -103,7 +179,7 @@ export default function Dashboard() {
       <PageHeader
         tour="dash-header"
         title={`${greeting}, ${user?.first_name || user?.email}`}
-        subtitle={`${company.name || 'Your company'} · ${fmtDate(new Date().toISOString().slice(0, 10), { weekday: 'long', day: 'numeric', month: 'long' })} · ${scopeLabel}`}
+        subtitle={`${company.name || 'Your company'} · ${fmtDate(todayIso(), { weekday: 'long', day: 'numeric', month: 'long' })} · ${scopeLabel}`}
         actions={
           <>
             <Button onClick={reset} data-tour="dash-reset">Reset layout</Button>
@@ -128,6 +204,7 @@ export default function Dashboard() {
             data-testid="dash-card"
             data-card-type={c.type}
             data-card-key={c.config?.key || c.type}
+            data-tour={(() => { const k = cardTourKey(c); if (tourKeys.has(k)) return undefined; tourKeys.add(k); return `dash-card-${k}`; })()}
           >
             <CardView card={c} data={data.data} currency={currency} first={i === 0} tourInsight={c.id === firstChartId} onRemove={() => remove(c)} onResize={(s) => resize(c, s)} onEdit={() => setEditing(c)} onOpen={(to) => navigate(to)} />
           </div>
@@ -493,13 +570,17 @@ function ChartCard({ k, data, currency, onOpen, first }: { k: string; data: any;
       );
     }
     case 'my_leave_balance_chart': {
-      const rows: any[] = data.my_leave_balance_detail || [];
+      const all: any[] = data.my_leave_balance_detail || [];
+      // Unpaid leave and long special entitlements (maternity…) would dwarf the everyday balances, so list them separately.
+      const everyday = (b: any) => Number(b.paid) === 1 && Number(b.annual_quota) <= 60;
+      const rows = all.filter(everyday);
+      const special = all.filter((b) => !everyday(b) && Number(b.paid) === 1 && b.available > 0);
       const items: Datum[] = rows.map((b, i) => ({ key: String(b.leave_type_id), label: b.name, value: Math.max(0, b.available), color: b.color || CHART_COLORS[i % CHART_COLORS.length], hint: `${b.name}: ${b.available} available · ${b.used} used of ${b.allocated + b.carried + b.adjusted}` }));
       const used = sum(rows.map((b) => b.used)), avail = sum(rows.map((b) => Math.max(0, b.available)));
       return (
         <>
           <DonutChart data={items} centerLabel={`${avail}`} onSelect={(d) => onOpen(`/leave?type=${d.key}`)} />
-          <Insight first={first} text={rows.length ? `${avail} day${avail === 1 ? '' : 's'} available, ${used} used this year. Click a type to apply.` : 'No leave balances for this year yet.'} />
+          <Insight first={first} text={rows.length ? `${avail} day${avail === 1 ? '' : 's'} available, ${used} used this year. Click a type to apply.${special.length ? ` Also eligible: ${special.map((b) => `${b.name} (${b.available})`).join(', ')}.` : ''}` : 'No leave balances for this year yet.'} />
         </>
       );
     }

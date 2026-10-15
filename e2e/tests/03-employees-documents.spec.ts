@@ -8,7 +8,7 @@ test.describe('employees & documents', () => {
   test('HR adds an employee with custom fields and a login, then uploads a document with expiry colouring', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/employees');
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
     await page.getByTestId('employee-add').click();
     const modal = page.getByRole('dialog');
     await modal.getByLabel(/First name/).fill('Lina');
@@ -46,7 +46,7 @@ test.describe('employees & documents', () => {
   test('document centre shows expiring documents with colour indicators and lets HR customise formats', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/documents');
-    await runTour(page);
+    await runTour(page, { minSteps: 15 });
     await page.getByRole('tab', { name: /Expiring/ }).click();
     await expect(page.locator('.expiry-expired').first()).toBeVisible();
     await expect(page.locator('.expiry-critical').first()).toBeVisible();

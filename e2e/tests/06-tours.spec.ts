@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { login, runTour, USERS } from './helpers';
 
-const PAGES = ['/', '/employees', '/employees/6', '/org', '/org-tree', '/recruitment', '/jobs', '/journey', '/documents', '/attendance', '/leave', '/payroll', '/assets', '/settings', '/account'];
+const PAGES = ['/', '/employees', '/employees/6', '/org', '/org-tree', '/recruitment', '/jobs', '/journey', '/documents', '/attendance', '/leave', '/payroll', '/assets', '/settings', '/account', '/letters', '/performance', '/roster', '/clients', '/announcements', '/integrations'];
 
 test('every page offers a working "Tour this page" walkthrough (HR)', async ({ page }) => {
+  // Every page now has a full workflow tour (often 15-30 steps, switching tabs), so walking all of them takes a while.
+  test.setTimeout(PAGES.length * 30_000);
   await login(page, USERS.hr);
   for (const p of PAGES) {
     await page.goto(p);

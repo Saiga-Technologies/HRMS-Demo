@@ -6,7 +6,7 @@ import { wrap, badRequest, notFound, pick, requireFields, audit, toInt, nowIso }
 const r = Router();
 
 // ---------- Departments ----------
-const DEPT_COLS = ['name', 'code', 'parent_id', 'head_employee_id', 'description', 'color', 'sort_order', 'active'];
+const DEPT_COLS = ['name', 'code', 'parent_id', 'head_employee_id', 'description', 'color', 'icon', 'sort_order', 'active'];
 const deptQuery = `
   SELECT d.*, p.name AS parent_name,
          (SELECT COUNT(*) FROM employees e WHERE e.department_id = d.id AND e.status != 'exited') AS employee_count,
@@ -105,7 +105,7 @@ r.get('/tree', requireAuth, (req, res) => {
   const mode = req.query.mode === 'department' ? 'department' : 'reporting';
   const employees = all<any>(
     `SELECT e.id, e.employee_code, e.first_name, e.last_name, e.email, e.photo_path, e.manager_id, e.department_id, e.position_id, e.status,
-            d.name AS department_name, d.color AS department_color, p.title AS position_title
+            d.name AS department_name, d.color AS department_color, d.icon AS department_icon, p.title AS position_title
      FROM employees e LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN positions p ON p.id = e.position_id
      WHERE e.status != 'exited' ORDER BY e.first_name`,
   );

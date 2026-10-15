@@ -1,5 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { app, request, hr, employee, manager, auth, cleanup } from './helpers.js';
+import { today as companyToday, addDays as addDaysUtil } from '../src/util.js';
 
 afterAll(cleanup);
 const { run, get } = await import('../src/db.js');
@@ -83,7 +84,7 @@ describe('travel tracking', () => {
     // Employee cannot see another employee's trip
     const other = await request(app).get('/api/travel?employee_id=5').set(auth(e));
     expect(other.body.length).toBe(0);
-    const month = new Date().toISOString().slice(0, 7);
+    const month = companyToday().slice(0, 7);
     expect((await request(app).get(`/api/travel/summary?period=${month}`).set(auth(e))).status).toBe(403);
     const sum = await request(app).get(`/api/travel/summary?period=${month}`).set(auth(t));
     expect(sum.status).toBe(200);
@@ -215,7 +216,7 @@ describe('comp-off automation', () => {
     const t = await hr();
     const rows = (await request(app).get('/api/compoff?employee_id=11&status=detected').set(auth(t))).body;
     expect(rows.length).toBeGreaterThanOrEqual(2);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const yesterday = addDaysUtil(companyToday(), -1);
     run('UPDATE comp_off_credits SET expires_on = ? WHERE id = ?', [yesterday, rows[0].id]);
     await request(app).post(`/api/compoff/${rows[1].id}/request`).set(auth(t)).send({});
     run('UPDATE comp_off_credits SET expires_on = ? WHERE id = ?', [yesterday, rows[1].id]);

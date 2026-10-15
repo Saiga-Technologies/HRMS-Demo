@@ -2,16 +2,37 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDateTime } from '../lib/format';
 import { Button, Card, Checkbox, Field, Input, Modal, PageHeader, Select, Switch, Table, Tabs, Textarea, useConfirm, useFetch, useForm, useToast, Badge, StatusBadge } from '../components/ui';
 
-const TOUR = [
-  { element: '[data-tour="settings-tabs"]', title: 'Settings areas', description: 'Company profile and branding, document upload rules, customisable employee fields, user logins and roles, and the audit log.' },
-  { element: '[data-tour="settings-company"]', title: 'Company profile', description: 'The name, logo initial and brand colour appear across the app for every employee.' },
-  { element: '[data-tour="settings-documents"]', title: 'Document upload formats', description: 'Choose which file formats (PDF, JPG, PNG) HR accepts by default, the size limit and the expiry warning windows that drive the colour indicators.' },
-  { element: '[data-tour="settings-fields"]', title: 'Custom fields', description: 'Add your own fields to employee records: text, number, date, dropdown, yes/no or long text. They appear on the employee form automatically.' },
-  { element: '[data-tour="settings-users"]', title: 'Users & roles', description: 'Create logins for staff and choose a role: HR (full access), Manager (approvals for their team) or Employee (self-service).' },
+const TOUR: TourStep[] = [
+  { title: 'Settings', description: 'Where HR sets the company up, in the order you would do it the first time: 1) company profile and branding, 2) document upload rules, 3) custom fields for employee records, 4) user logins and roles, 5) the lists used in dropdowns, and 6) the audit log to check who changed what.' },
+  { element: '[data-tour="settings-tabs"]', title: 'Settings areas', description: 'Each tab is one part of the setup. Changes take effect for everyone as soon as you save the tab.' },
+  { element: '[data-tour="settings-company"]', title: 'Start with the company', description: 'Your company profile: the details that appear on payslips, the login page, the careers page and across the app.', tab: 'company' },
+  { element: '[data-testid="company-name"]', title: 'Company details', description: 'Name, legal name, tagline, website, HR email, phone and address. The legal name and address are what official documents such as payslips use.' },
+  { element: '[data-tour="settings-logo"]', title: 'Logo initials', description: 'Up to three letters shown as the logo in the sidebar, on the login page and on the public careers page.' },
+  { element: '[data-testid="brand-color"]', title: 'Brand colours', description: 'The brand colour drives primary buttons, the active menu item and charts; the accent colour is used for secondary highlights. Pick colours that read well on both light and dark backgrounds.' },
+  { element: '[data-tour="settings-theme"]', title: 'Default theme', description: 'Light or dark for people who have not chosen yet. Everyone can still switch from the top bar, and their choice is remembered on their device.' },
+  { element: '[data-tour="settings-currency"]', title: 'Locale and defaults', description: 'Currency code and symbol (used for salaries, payroll and billing), timezone, which day the week starts on and the month your financial year starts.' },
+  { element: '[data-tour="settings-code-prefix"]', title: 'Employee codes', description: 'New employees get this prefix plus the next number, for example EMP0014. Set it before you add people so codes stay consistent.' },
+  { element: '[data-testid="company-save"]', title: 'Save the profile', description: 'Saves the profile and applies the new name, logo and colours straight away for everyone.' },
+  { element: '[data-tour="settings-documents"]', title: 'Next, document rules', description: 'How employee documents (IDs, contracts, certificates) are uploaded and how their expiry is flagged.', tab: 'documents' },
+  { element: '[data-tour="settings-formats"]', title: 'Accepted formats', description: 'Which of PDF, JPG and PNG are accepted by default. Each document type can narrow this further on the Documents page.' },
+  { element: '[data-tour="settings-max-size"]', title: 'File size limit', description: 'The largest file anyone can upload, in megabytes, unless a document type sets its own limit. Bigger files are rejected.' },
+  { element: '[data-tour="settings-expiry"]', title: 'Expiry warnings', description: 'How many days before expiry a document turns yellow (warning) and orange (critical); it turns red once expired. These colours show on the Documents page and the employee profile.' },
+  { element: '[data-testid="docrules-save"]', title: 'Save the rules', description: 'New uploads follow the saved rules from now on; documents already uploaded are kept.' },
+  { element: '[data-tour="settings-fields"]', title: 'Next, custom fields', description: 'Capture anything the standard forms do not ask for, such as blood group, T-shirt size or a second emergency contact.', tab: 'fields' },
+  { element: '[data-tour="settings-fields-entity"]', title: 'Which record', description: 'Choose whether you are defining fields for employees, assets or documents. Employee fields appear on the employee form and profile.' },
+  { element: '[data-testid="field-add"]', title: 'Add a field', description: 'Opens a form for the label, type (text, long text, number, date, dropdown or yes/no), the section it is grouped under, its order and whether it is required. The key is generated from the label.' },
+  { element: '[data-tour="settings-fields"] tbody tr:first-child', title: 'Edit or retire a field', description: 'Click a field to edit it, or set it Inactive to hide it from forms. Deleting a field hides it too, but values already entered stay stored.' },
+  { element: '[data-tour="settings-users"]', title: 'Next, users and roles', description: 'Everyone who signs in, their role, the employee record they are linked to, whether their account is active and when they last signed in.', tab: 'users' },
+  { element: '[data-testid="user-add"]', title: 'Add a user', description: 'Opens a form for the email, role, linked employee and a starting password. The user must change that password the first time they sign in.' },
+  { element: '[data-tour="settings-users"] tbody tr:first-child td:nth-child(2) .badge', title: 'Roles', description: 'HR has full access including these settings. Managers approve requests such as leave for their team and see their team\'s records. Employees use self-service: their own profile, leave, payslips and documents.' },
+  { element: '[data-tour="settings-users"] tbody tr:first-child', title: 'Change a user', description: 'Click a user to change their role, re-link them to an employee, reset their password or disable the account. Disabled users can no longer sign in, but their history is kept.' },
+  { element: '[data-tour="settings-lists"]', title: 'Next, lists', description: 'The choices offered in dropdowns elsewhere. Pick a list (asset categories or employment types), remove an item with its cross, or type a new one and click Add.', tab: 'lists' },
+  { element: '[data-tour="settings-audit"]', title: 'Finally, the audit log', description: 'The latest 200 changes across the system: who did what, to which record, and when. Use it to answer "who changed this?" after setup.', tab: 'audit' },
+  { title: 'What to do next', description: 'With the company, document rules, fields and users in place, add departments and positions on the Organisation page, then your employees. Come back here whenever the branding, rules or people with access change.' },
 ];
 
 export default function Settings() {
@@ -61,15 +82,15 @@ function CompanySettings() {
         <Field label="Phone"><Input {...f.bind('phone')} /></Field>
         <Field label="Address" className="span-2"><Textarea {...f.bind('address')} /></Field>
         <div className="form-section">Branding</div>
-        <Field label="Logo initial(s)" hint="Shown in the sidebar and login page"><Input maxLength={3} {...f.bind('logo_text')} /></Field>
+        <Field label="Logo initial(s)" hint="Shown in the sidebar and login page"><Input maxLength={3} {...f.bind('logo_text')} data-tour="settings-logo" /></Field>
         <Field label="Brand colour" hint="Primary buttons, active navigation, charts"><Input type="color" {...f.bind('brand_color')} data-testid="brand-color" /></Field>
         <Field label="Accent colour" hint="Secondary highlights and chart series"><Input type="color" {...f.bind('accent_color')} /></Field>
-        <Field label="Default theme" hint="Users can still switch themes from the top bar"><Select {...f.bind('default_theme')}><option value="light">Light</option><option value="dark">Dark</option></Select></Field>
+        <Field label="Default theme" hint="Users can still switch themes from the top bar"><Select {...f.bind('default_theme')} data-tour="settings-theme"><option value="light">Light</option><option value="dark">Dark</option></Select></Field>
         <div className="form-section">Locale & defaults</div>
-        <Field label="Currency code"><Input {...f.bind('currency')} placeholder="INR" /></Field>
+        <Field label="Currency code"><Input {...f.bind('currency')} placeholder="INR" data-tour="settings-currency" /></Field>
         <Field label="Currency symbol"><Input {...f.bind('currency_symbol')} /></Field>
         <Field label="Timezone"><Input {...f.bind('timezone')} /></Field>
-        <Field label="Employee code prefix" hint="New employees get the next number, e.g. EMP0014"><Input {...f.bind('employee_code_prefix')} /></Field>
+        <Field label="Employee code prefix" hint="New employees get the next number, e.g. EMP0014"><Input {...f.bind('employee_code_prefix')} data-tour="settings-code-prefix" /></Field>
         <Field label="Week starts on"><Select {...f.bind('week_start')}><option value={0}>Sunday</option><option value={1}>Monday</option></Select></Field>
         <Field label="Financial year starts in month"><Input type="number" min={1} max={12} {...f.bind('financial_year_start_month')} /></Field>
         <div className="span-2 row end"><Button type="submit" variant="primary" loading={busy} data-testid="company-save">Save</Button></div>
@@ -99,14 +120,14 @@ function DocumentSettings() {
         <div>
           <div className="field-label">Default accepted formats</div>
           <p className="help">Each document type can further restrict these. HR chooses which of PDF, JPG and PNG are allowed.</p>
-          <div className="row">
+          <div className="row" data-tour="settings-formats">
             {['pdf', 'jpg', 'png'].map((fmt) => <Checkbox key={fmt} label={fmt.toUpperCase()} checked={v.allowed_formats.includes(fmt)} onChange={() => toggle(fmt)} data-testid={`fmt-${fmt}`} />)}
           </div>
         </div>
         <div className="form-grid">
-          <Field label="Maximum file size (MB)"><Input type="number" min={1} max={50} value={v.max_size_mb} onChange={(e) => setV({ ...v, max_size_mb: e.target.value })} /></Field>
+          <Field label="Maximum file size (MB)"><Input type="number" min={1} max={50} data-tour="settings-max-size" value={v.max_size_mb} onChange={(e) => setV({ ...v, max_size_mb: e.target.value })} /></Field>
           <div />
-          <Field label="Warning when expiring within (days)" hint="Yellow indicator"><Input type="number" min={1} value={v.expiry_warning_days} onChange={(e) => setV({ ...v, expiry_warning_days: e.target.value })} /></Field>
+          <Field label="Warning when expiring within (days)" hint="Yellow indicator"><Input type="number" min={1} data-tour="settings-expiry" value={v.expiry_warning_days} onChange={(e) => setV({ ...v, expiry_warning_days: e.target.value })} /></Field>
           <Field label="Critical when expiring within (days)" hint="Orange indicator; red once expired"><Input type="number" min={0} value={v.expiry_critical_days} onChange={(e) => setV({ ...v, expiry_critical_days: e.target.value })} /></Field>
         </div>
         <div className="row end"><Button variant="primary" loading={busy} onClick={save} data-testid="docrules-save">Save</Button></div>
@@ -126,7 +147,7 @@ function CustomFields() {
     try { await api.delete(`/api/settings/custom-fields/${d.id}`); toast.success('Field deleted'); defs.reload(); } catch (e) { toast.error(e); }
   };
   return (
-    <Card title="Custom fields" tour="settings-fields" actions={<><Select value={entity} onChange={(e) => setEntity(e.target.value)} style={{ width: 'auto' }}><option value="employee">Employee</option><option value="asset">Asset</option><option value="document">Document</option></Select><Button variant="primary" onClick={() => setEdit({ entity })} data-testid="field-add">+ Add field</Button></>} padded={false}>
+    <Card title="Custom fields" tour="settings-fields" actions={<><Select value={entity} onChange={(e) => setEntity(e.target.value)} style={{ width: 'auto' }} data-tour="settings-fields-entity"><option value="employee">Employee</option><option value="asset">Asset</option><option value="document">Document</option></Select><Button variant="primary" onClick={() => setEdit({ entity })} data-testid="field-add">+ Add field</Button></>} padded={false}>
       {dialog}
       <Table rows={defs.data || []} loading={defs.loading} onRowClick={(d) => setEdit(d)} empty="No custom fields yet. Add one to extend the form."
         columns={[
@@ -240,7 +261,7 @@ function Lists() {
     try { await api.put(`/api/settings/${key}`, items); list.setData(items); toast.success('List saved'); } catch (e) { toast.error(e); }
   };
   return (
-    <Card title="Configurable lists" actions={<Select value={key} onChange={(e) => setKey(e.target.value as any)} style={{ width: 'auto' }}><option value="asset_categories">Asset categories</option><option value="employment_types">Employment types</option></Select>}>
+    <Card title="Configurable lists" tour="settings-lists" actions={<Select value={key} onChange={(e) => setKey(e.target.value as any)} style={{ width: 'auto' }}><option value="asset_categories">Asset categories</option><option value="employment_types">Employment types</option></Select>}>
       <div className="chip-list mb">
         {(list.data || []).map((item) => <span className="chip" key={item}>{item} <button onClick={() => save((list.data || []).filter((x) => x !== item))} aria-label={`Remove ${item}`}>✕</button></span>)}
       </div>
@@ -255,7 +276,7 @@ function Lists() {
 function AuditLog() {
   const log = useFetch<any[]>(() => api.get('/api/settings/audit/log?limit=200'), []);
   return (
-    <Card title="Audit log" padded={false}>
+    <Card title="Audit log" padded={false} tour="settings-audit">
       <Table dense rows={log.data || []} loading={log.loading}
         columns={[
           { key: 'created_at', header: 'When', render: (r) => fmtDateTime(r.created_at) },

@@ -29,7 +29,7 @@ export function Approvals({ onChanged }: { onChanged?: () => void }) {
   };
   const rows = list.data || [];
   if (list.loading && !list.data) return <Spinner />;
-  if (!rows.length) return <Card><EmptyState icon="✓" title="Nothing waiting for you" description="Pending leave requests from your reports will appear here." /></Card>;
+  if (!rows.length) return <Card tour="leave-approvals"><EmptyState icon="✓" title="Nothing waiting for you" description="Pending leave requests from your reports will appear here." /></Card>;
   return (
     <div className="grid grid-2" data-tour="leave-approvals">
       {rows.map((r) => (

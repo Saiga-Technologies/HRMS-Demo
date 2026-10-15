@@ -8,7 +8,7 @@ test.describe('recruitment', () => {
   test('HR uploads a CV, sees the score, moves the candidate to interview, hires them and lands on the new employee profile', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/recruitment');
-    await runTour(page);
+    await runTour(page, { minSteps: 15 });
 
     // Seeded pipeline is visible with scored cards.
     await expect(page.getByTestId('pipeline-board')).toBeVisible();
@@ -67,7 +67,7 @@ test.describe('recruitment', () => {
     await expect(page.getByTestId('employee-recruitment-link')).toBeVisible();
     await page.getByRole('tab', { name: /Journey/ }).click();
     await expect(page.getByTestId('journey-hired-via')).toContainText('Software Engineer (Platform)');
-    await expect(page.getByText('8 / 14 stages')).toBeVisible();
+    await expect(page.getByText(/^8 \/ 1[45] stages$/)).toBeVisible(); // 15 when the journey spec added a stage template earlier in the run
     await page.getByRole('tab', { name: /Documents/ }).click();
     await expect(page.getByRole('cell', { name: /CV \(from recruitment\)/ })).toHaveCount(0); // txt CVs are not copied (PDF only)
 

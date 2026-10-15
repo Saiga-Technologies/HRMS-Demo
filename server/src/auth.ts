@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
-import { get, run, insert, all } from './db.js';
+import { get, run, insert, all, agency, currentCompanySlug, DEFAULT_COMPANY_SLUG } from './db.js';
 import { HttpError, nowIso } from './util.js';
 
 export type Role = 'hr' | 'manager' | 'employee';
@@ -12,11 +12,21 @@ export interface AuthUser {
   must_change_password: number;
 }
 
+export type AgencyRole = 'owner' | 'admin' | 'account_manager' | 'payroll' | 'recruiter';
+export interface AgencyUser { id: number; email: string; first_name: string; last_name: string; role: AgencyRole }
+/** Decoded session, before the user row is loaded: who, and which database it lives in. */
+export interface SessionInfo { token: string; kind: 'company' | 'agency'; slug?: string; userId: number; role?: string; employeeId?: number | null; stateless: boolean; dbToken?: string }
+
 declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
       sessionToken?: string;
+      /** Set for agency staff (also while they work inside a client company). */
+      agencyUser?: AgencyUser;
+      authSession?: SessionInfo | null;
+      /** Company this request runs as (set by the tenancy middleware). */
+      companySlug?: string;
     }
   }
 }
@@ -48,11 +58,11 @@ const b64u = (s: string | Buffer) => Buffer.from(s).toString('base64url');
 function sign(payload: string) {
   return crypto.createHmac('sha256', sessionSecret()).update(payload).digest('base64url');
 }
-function makeStatelessToken(user: { id: number; role: string; employee_id: number | null }): string {
-  const payload = b64u(JSON.stringify({ u: user.id, r: user.role, e: user.employee_id, x: Date.now() + SESSION_TTL_MS }));
+function makeStatelessToken(data: { k: 'c' | 'a'; s?: string; u: number; r: string; e?: number | null }): string {
+  const payload = b64u(JSON.stringify({ ...data, x: Date.now() + SESSION_TTL_MS }));
   return `${payload}.${sign(payload)}`;
 }
-function readStatelessToken(token: string): { u: number; r: Role; e: number | null; x: number } | null {
+function readStatelessToken(token: string): { k?: 'c' | 'a'; s?: string; u: number; r: string; e: number | null; x: number } | null {
   const i = token.indexOf('.');
   if (i < 0) return null;
   const payload = token.slice(0, i);
@@ -81,13 +91,17 @@ export function verifyPassword(password: string, stored: string): boolean {
   return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
 }
 
+/** Session for a company login (client HR, manager, employee) of the current company. */
 export function createSession(userId: number, userAgent?: string): string {
   run('UPDATE users SET last_login_at = ? WHERE id = ?', [nowIso(), userId]);
+  const slug = currentCompanySlug();
   if (statelessSessions()) {
     const u = get<any>('SELECT id, role, employee_id FROM users WHERE id = ?', [userId])!;
-    return makeStatelessToken(u);
+    return makeStatelessToken({ k: 'c', s: slug, u: u.id, r: u.role, e: u.employee_id });
   }
-  const token = crypto.randomBytes(32).toString('base64url');
+  const raw = crypto.randomBytes(32).toString('base64url');
+  // The company is part of the token so the session can be found before the database is chosen.
+  const token = slug === DEFAULT_COMPANY_SLUG ? raw : `c:${slug}:${raw}`;
   const now = Date.now();
   insert('sessions', {
     token,
@@ -98,8 +112,66 @@ export function createSession(userId: number, userAgent?: string): string {
   });
   return token;
 }
+/** Session for agency staff. */
+export function createAgencySession(agencyUserId: number): string {
+  agency.run('UPDATE agency_users SET last_login_at = ? WHERE id = ?', [nowIso(), agencyUserId]);
+  if (statelessSessions()) {
+    const u = agency.get<any>('SELECT id, role FROM agency_users WHERE id = ?', [agencyUserId])!;
+    return makeStatelessToken({ k: 'a', u: u.id, r: u.role });
+  }
+  const token = `a:${crypto.randomBytes(32).toString('base64url')}`;
+  const now = Date.now();
+  agency.insert('agency_sessions', { token, agency_user_id: agencyUserId, created_at: new Date(now).toISOString(), expires_at: new Date(now + SESSION_TTL_MS).toISOString() });
+  return token;
+}
 export function destroySession(token: string) {
-  run('DELETE FROM sessions WHERE token = ?', [token]);
+  if (token.startsWith('a:')) agency.run('DELETE FROM agency_sessions WHERE token = ?', [token]);
+  else run('DELETE FROM sessions WHERE token = ?', [token]);
+}
+
+/**
+ * Decode the session cookie / bearer token without touching a company database: tells the tenancy
+ * middleware whether this is agency staff or a company login, and for which company.
+ */
+export function decodeSession(req: Request): SessionInfo | null {
+  const bearer = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
+  const token = bearer || parseCookies(req.headers.cookie)[SESSION_COOKIE];
+  if (!token) return null;
+  if (token.includes('.')) {
+    const d = readStatelessToken(token);
+    if (!d) return null;
+    if (d.k === 'a') return { token, kind: 'agency', userId: d.u, role: d.r, stateless: true };
+    return { token, kind: 'company', slug: d.s || DEFAULT_COMPANY_SLUG, userId: d.u, role: d.r, employeeId: d.e, stateless: true };
+  }
+  if (token.startsWith('a:')) {
+    const row = agency.get<any>('SELECT agency_user_id, expires_at FROM agency_sessions WHERE token = ?', [token]);
+    if (!row || row.expires_at <= nowIso()) return null;
+    return { token, kind: 'agency', userId: row.agency_user_id, stateless: false };
+  }
+  const m = token.match(/^c:([a-z0-9-]+):/);
+  return { token, kind: 'company', slug: m ? m[1] : DEFAULT_COMPANY_SLUG, userId: 0, stateless: false, dbToken: token };
+}
+
+/** Agency staff record (active only). */
+export function loadAgencyUser(id: number): AgencyUser | null {
+  const u = agency.get<any>('SELECT id, email, first_name, last_name, role FROM agency_users WHERE id = ? AND active = 1', [id]);
+  return u || null;
+}
+/** Agency roles act as HR inside a client company, except recruiters (recruitment-level access). */
+const agencyCompanyRole = (r: AgencyRole): Role => (r === 'recruiter' ? 'manager' : 'hr');
+/** The in-company user row that agency staff act as (created on first visit, never logs in itself). */
+function shadowUser(a: AgencyUser): AuthUser {
+  let u = get<any>('SELECT id, email, role, employee_id, must_change_password FROM users WHERE agency_user_id = ?', [a.id]);
+  const role = agencyCompanyRole(a.role);
+  if (!u) {
+    const email = get('SELECT 1 FROM users WHERE email = ?', [a.email]) ? `agency+${a.id}@${currentCompanySlug()}.agency` : a.email;
+    const id = insert('users', { email, password_hash: '!agency', role, employee_id: null, active: 1, must_change_password: 0, agency_user_id: a.id, created_at: nowIso() });
+    u = { id, email, role, employee_id: null, must_change_password: 0 };
+  } else if (u.role !== role) {
+    run('UPDATE users SET role = ? WHERE id = ?', [role, u.id]);
+    u.role = role;
+  }
+  return { id: u.id, email: u.email, role, employee_id: null, must_change_password: 0 };
 }
 
 function parseCookies(header: string | undefined): Record<string, string> {
@@ -113,38 +185,55 @@ function parseCookies(header: string | undefined): Record<string, string> {
   return out;
 }
 
-/** Attach req.user when a valid session cookie or bearer token is present. */
+/**
+ * Attach req.user (and req.agencyUser for agency staff). Runs after the tenancy middleware, so
+ * company lookups hit the right company's database.
+ */
 export function attachUser(req: Request, _res: Response, next: NextFunction) {
-  const bearer = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined;
-  const token = bearer || parseCookies(req.headers.cookie)[SESSION_COOKIE];
-  if (!token) return next();
-  if (token.includes('.')) {
-    const data = readStatelessToken(token);
-    if (data) {
-      // Prefer the live user row when this instance has it (picks up role changes / deactivation);
-      // otherwise trust the signed payload so the session survives instance switches.
-      const u = get<any>('SELECT id, email, role, employee_id, must_change_password, active FROM users WHERE id = ?', [data.u]);
-      if (u && !u.active) return next();
-      req.user = u
-        ? { id: u.id, email: u.email, role: u.role, employee_id: u.employee_id, must_change_password: u.must_change_password }
-        : { id: data.u, email: '', role: data.r, employee_id: data.e, must_change_password: 0 };
-      req.sessionToken = token;
-    }
+  const s = req.authSession;
+  if (!s) return next();
+  if (s.kind === 'agency') {
+    const a = loadAgencyUser(s.userId);
+    if (!a) return next();
+    req.agencyUser = a;
+    req.sessionToken = s.token;
+    // Inside a client company the agency user acts through a shadow company user.
+    if (req.companySlug) req.user = shadowUser(a);
+    return next();
+  }
+  if (s.stateless) {
+    // Prefer the live user row when this instance has it (picks up role changes / deactivation);
+    // otherwise trust the signed payload so the session survives instance switches.
+    const u = get<any>('SELECT id, email, role, employee_id, must_change_password, active, agency_user_id FROM users WHERE id = ?', [s.userId]);
+    if (u && (!u.active || u.agency_user_id)) return next();
+    req.user = u
+      ? { id: u.id, email: u.email, role: u.role, employee_id: u.employee_id, must_change_password: u.must_change_password }
+      : { id: s.userId, email: '', role: s.role as Role, employee_id: s.employeeId ?? null, must_change_password: 0 };
+    req.sessionToken = s.token;
     return next();
   }
   const row = get<any>(
     `SELECT u.id, u.email, u.role, u.employee_id, u.must_change_password, s.expires_at
      FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token = ? AND u.active = 1`,
-    [token],
+    [s.token],
   );
   if (row && row.expires_at > nowIso()) {
     req.user = { id: row.id, email: row.email, role: row.role, employee_id: row.employee_id, must_change_password: row.must_change_password };
-    req.sessionToken = token;
+    req.sessionToken = s.token;
   } else if (row) {
-    destroySession(token);
+    destroySession(s.token);
   }
   next();
+}
+
+/** Agency staff only (optionally restricted to some agency roles). */
+export function requireAgency(...roles: AgencyRole[]) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.agencyUser) return next(new HttpError(req.user ? 403 : 401, req.user ? 'Agency staff only' : 'Authentication required'));
+    if (roles.length && !['owner', 'admin', ...roles].includes(req.agencyUser.role)) return next(new HttpError(403, 'Insufficient agency permissions'));
+    next();
+  };
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {

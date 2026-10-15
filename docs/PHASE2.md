@@ -10,6 +10,15 @@ Feedback-driven second release. Everything below is in the product; this file is
 - **Light and dark themes**: toggle in the top bar (remembered per browser); HR sets the default
   theme, brand colour and accent colour under Settings → Company. Every component uses CSS
   variables (`client/src/styles.css`), so a customer palette is a settings change, not code.
+- **Darcio palette** by default: Saiga green (`#5BA85A` / dark `#4A8F49` / light `#6DC06C`) with an amber
+  accent and green-tinted neutrals. Company settings set `--brand-base`; each theme derives a legible
+  shade from it (dark mode lifts it toward white and switches button text to dark ink). Databases still on
+  the old indigo default are moved over on start-up.
+- **Department icons** replace the plain colour squares: each department has an icon (picked in the
+  department form, guessed from the name when unset) shown in a tile tinted with its colour, on the
+  org structure, employee list, employee profile and org tree (`client/src/components/DeptBadge.tsx`).
+- **Employee profile header**: identity block (name, status, position · code) plus a row of labelled
+  fact tiles (department, work location, joined + tenure, reports to, direct reports, login).
 - **Doodle texture** on the page background (inline SVG pattern, theme-aware).
 - **Styled file pickers** (`FileInput`): drag-and-drop zone, "Choose file" button, selected-file chip.
 - **Detail pages** use a responsive card grid (`detail-grid`) instead of one long column.
@@ -40,6 +49,11 @@ Feedback-driven second release. Everything below is in the product; this file is
   with an explainable breakdown, Kanban pipeline, interview notes, and **Hire → creates the
   employee**, pre-completes the journey stages up to Offer, links the vacancy, and copies the CV
   into the employee's documents. Add employee can also start from a candidate.
+- **Company-local dates**: "today" on the server follows the company time zone
+  (`HRMS_TZ_OFFSET_MINUTES`, default IST) instead of UTC, so punches, appeal deadlines and reports made
+  between midnight and 05:30 IST land on the right day.
+- **Leave balance card** totals everyday leave only; unpaid leave and long special entitlements
+  (e.g. maternity) are listed separately instead of inflating the number.
 - **User IDs**: employee codes are always auto-generated; logins are created by default with a
   generated temporary password shown once.
 

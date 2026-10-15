@@ -47,6 +47,7 @@ export interface Employee {
   notes?: string | null;
   department_name?: string | null;
   department_color?: string | null;
+  department_icon?: string | null;
   position_title?: string | null;
   manager_name?: string | null;
   work_location_name?: string | null;

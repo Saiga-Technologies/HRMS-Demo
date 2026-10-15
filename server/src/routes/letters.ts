@@ -213,7 +213,7 @@ function renderLetter(template: any, employeeId: number, variables: Record<strin
 /* ------------------------------------------------------------------ */
 /* PDF                                                                 */
 /* ------------------------------------------------------------------ */
-function hexColor(c: any, fallback = '#4f46e5') {
+function hexColor(c: any, fallback = '#4A8F49') {
   return typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : fallback;
 }
 export function buildLetterPdf(opts: { title: string; body: string; ref: string; date: string; signatory: string; company: Record<string, any> }): Promise<Buffer> {

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, apiUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
+import { DeptIcon } from '../components/DeptBadge';
 import { Avatar, Button, Card, Checkbox, EmptyState, Field, Modal, PageHeader, Pill, SearchInput, Select, Spinner, useFetch, useToast } from '../components/ui';
 
 /* ------------------------------------------------------------------ */
@@ -11,7 +12,7 @@ import { Avatar, Button, Card, Checkbox, EmptyState, Field, Modal, PageHeader, P
 type Mode = 'reporting' | 'department';
 interface EmpNode { type: 'employee'; id: number; employee_code: string; first_name: string; last_name: string; email: string; photo_path?: string | null; manager_id?: number | null; department_id?: number | null; position_id?: number | null; status: string; department_name?: string | null; department_color?: string | null; position_title?: string | null; children?: EmpNode[] }
 interface PosNode { type: 'position'; id: number; title: string; code?: string | null; department_id?: number | null; headcount: number; level: number; employees: EmpNode[] }
-interface DeptNode { type: 'department'; id: number; name: string; code?: string | null; color?: string | null; parent_id?: number | null; head_employee_id?: number | null; positions: PosNode[]; employees: EmpNode[]; children: DeptNode[] }
+interface DeptNode { type: 'department'; id: number; name: string; code?: string | null; color?: string | null; icon?: string | null; parent_id?: number | null; head_employee_id?: number | null; positions: PosNode[]; employees: EmpNode[]; children: DeptNode[] }
 type AnyNode = EmpNode | PosNode | DeptNode;
 interface TreeResp { mode: Mode; roots: AnyNode[]; unassigned?: EmpNode[]; total: number }
 interface Dept { id: number; name: string; color?: string; head_name?: string; employee_count: number; parent_id?: number | null }
@@ -41,14 +42,26 @@ function nodeText(n: AnyNode): string {
   return [n.name, n.code].filter(Boolean).join(' ').toLowerCase();
 }
 
-const TOUR = [
-  { element: '[data-tour="tree-mode"]', title: 'Two ways to look at the organisation', description: '"Reporting line" nests people under their manager. "Departments" shows departments, the positions inside them and who holds each position.' },
-  { element: '[data-tour="tree-options"]', title: 'Customise the chart', description: 'Switch between a horizontal or vertical layout, choose what each card shows (photo, position, department, email, headcount) and zoom in or out.' },
-  { element: '[data-tour="tree-search"]', title: 'Find anyone', description: 'Type a name, code, email, position or department. Matches are highlighted and their branches are expanded automatically.' },
-  { element: '[data-tour="tree-node"]', title: 'A node', description: 'Each card is a person, position or department. Use the small toggle under a card to collapse or expand its branch. HR can click a card to edit where it sits in the tree.' },
-  { element: '[data-tour="tree-dnd"]', title: 'Drag and drop', description: 'HR can drag a person onto a new manager, or (in department view) drag people, positions and departments onto a department to move them. Changes are saved immediately.' },
-  { element: '[data-tour="tree-unassigned"]', title: 'Unassigned people', description: 'In department view, employees without a department wait here. Drag them onto a department to place them.' },
-  { element: '[data-tour="tree-print"]', title: 'Print or export', description: 'Print the current view (or save it as a PDF from the print dialog) to share the chart.' },
+const VIEW_REPORTING = '[data-tour="tree-view-reporting"]';
+const VIEW_DEPARTMENT = '[data-tour="tree-view-department"]';
+const TOUR: TourStep[] = [
+  { title: 'The org tree', description: 'A live chart of your organisation, built from Org structure and the manager set on each profile. The flow: 1) read the reporting line, 2) find people and adjust what the cards show, 3) switch to the department view, 4) (HR) restructure by drag and drop, 5) print or save it as a PDF.' },
+  { tab: VIEW_REPORTING, element: '[data-tour="tree-view"]', title: 'Choose a view', description: '"Reporting line" nests every person under their manager. "Departments" shows departments, the positions inside them and who holds each one. We start with the reporting line.' },
+  { element: '[data-tour="tree-layout"]', title: 'Layout', description: 'Draw the chart left to right (horizontal) or top to bottom (vertical). Vertical usually fits wide teams better on screen and in print.' },
+  { element: '[data-tour="tree-search"]', title: 'Find anyone', description: 'Type a name, employee code, email, position or department. Matches are highlighted, everything else fades, and collapsed branches open so you can see where each match sits.' },
+  { element: '[data-tour="tree-show"]', title: 'What each card shows', description: 'Turn photo, position, department, email and headcount on or off. Your choice is remembered on this device.' },
+  { element: '[data-tour="tree-zoom"]', title: 'Zoom and expand', description: 'Zoom with the slider, or Fit to squeeze the whole chart into view. Expand all and Collapse all open or fold every branch; Reset puts zoom, branches and search back to the start.' },
+  { element: '[data-tour="tree-canvas"]', title: 'The chart', description: 'Scroll inside the chart to move around. The footer counts employees and any collapsed branches.' },
+  { element: '[data-tour-node="tree-person-node"]', title: 'A person', description: 'Each card is one employee, edged in their department colour, with a count of everyone below them. The small button under a card folds or opens its branch (it shows how many are hidden).' },
+  { element: '[data-tour-node="tree-person-node"]', title: 'Edit a placement', description: 'HR can click any card to change the person\'s manager, department or position in a small form, or jump to their profile. Others see the chart read-only.' },
+  { element: '[data-tour="tree-dnd"]', title: 'Drag to change managers', description: 'HR can drag a person onto someone else to make that person their manager, or onto this strip to make them top level. The change is saved at once and also updates who approves their leave and attendance.' },
+  { tab: VIEW_DEPARTMENT, element: '[data-tour="tree-view"]', title: 'Department view', description: 'Now the department view: departments nest under their parent departments, with their positions and people inside.' },
+  { element: '[data-tour-node="tree-dept-node"]', title: 'A department', description: 'Shows the department icon, code and head, and how many employees and positions it holds, including sub-departments. HR can click it to move it under another parent.' },
+  { element: '[data-tour-node="tree-pos-node"]', title: 'A position', description: 'Each position shows its level and how many of its planned seats are filled. People holding the position hang underneath it.' },
+  { element: '[data-tour="tree-dnd"]', title: 'Restructure departments', description: 'In this view HR can drag a department onto another to make it a sub-department, drag a position to another department, or drag a person onto a department or position to move them. Every move is saved immediately.' },
+  { element: '[data-tour="tree-unassigned"]', title: 'Unassigned people', description: 'Employees without a department wait here. Drag them onto a department or position to place them, or drop someone here to take them out of their department.' },
+  { element: '[data-tour="tree-print"]', title: 'Print or export', description: 'Prints exactly what is on screen, without the toolbar. Choose "Save as PDF" in the print dialog to share the chart. Set the view, layout and zoom first.' },
+  { tab: VIEW_REPORTING, title: 'Keeping it accurate', description: 'The chart is only as good as the data: create departments and positions in Org structure, and set each person\'s manager, department and position on their profile or right here. Changes show up immediately in Employees and in approval routing.' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -180,6 +193,7 @@ export default function OrgTree() {
 
   /* ---- node renderer (recursive) ---- */
   let firstNodeTagged = false;
+  const tagged = new Set<string>();
   const renderNode = (n: AnyNode): React.ReactNode => {
     const k = keyOf(n);
     const kids = childrenOf(n);
@@ -188,12 +202,14 @@ export default function OrgTree() {
     const color = n.type === 'employee' ? n.department_color || undefined : n.type === 'department' ? n.color || undefined : deptById.get(n.department_id || 0)?.color || undefined;
     const tourAttr = !firstNodeTagged ? 'tree-node' : undefined;
     firstNodeTagged = true;
+    const typeTour = !tagged.has(n.type) ? (tagged.add(n.type), n.type === 'employee' ? 'tree-person-node' : n.type === 'department' ? 'tree-dept-node' : 'tree-pos-node') : undefined;
     const cls = ['tree-node', n.type === 'department' ? 'dept' : '', n.type === 'position' ? 'pos' : '', search.matches.has(k) ? 'match' : '', search.active && !search.matches.has(k) && !search.ancestors.has(k) ? 'dim' : '', over === k ? 'drop-target' : '', drag?.key === k ? 'dragging' : ''].filter(Boolean).join(' ');
     return (
       <li key={k}>
         <div
           className={cls}
           data-tour={tourAttr}
+          data-tour-node={typeTour}
           data-node={k}
           style={{ borderLeftColor: color }}
           draggable={isHr}
@@ -205,7 +221,7 @@ export default function OrgTree() {
         >
           {n.type === 'employee' ? (
             <>
-              {options.photo ? <Avatar name={nameOf(n)} src={n.photo_path ? `/api/employees/${n.id}/photo` : undefined} size={36} color={color} /> : null}
+              {options.photo ? <Avatar name={nameOf(n)} src={n.photo_path ? apiUrl(`/api/employees/${n.id}/photo`) : undefined} size={36} color={color} /> : null}
               <div>
                 <div className="tree-name">{nameOf(n)} <span className="muted mono">{n.employee_code}</span></div>
                 {options.position ? <div className="tree-sub">{n.position_title || 'No position'}</div> : null}
@@ -216,7 +232,7 @@ export default function OrgTree() {
             </>
           ) : n.type === 'department' ? (
             <>
-              <span className="color-swatch" style={{ background: n.color || '#94a3b8' }} />
+              <DeptIcon name={n.name} icon={n.icon} color={n.color} size={32} />
               <div>
                 <div className="tree-name">{n.name} {n.code ? <span className="muted mono">{n.code}</span> : null}</div>
                 <div className="tree-sub">Head: {deptById.get(n.id)?.head_name || '—'}</div>
@@ -256,12 +272,16 @@ export default function OrgTree() {
         <div className="stack">
           <div className="row between">
             <div className="row" data-tour="tree-mode">
-              <span className="muted">View</span>
-              <Pill active={mode === 'reporting'} onClick={() => { setMode('reporting'); setCollapsed(new Set()); }}>Reporting line</Pill>
-              <Pill active={mode === 'department'} onClick={() => { setMode('department'); setCollapsed(new Set()); }}>Departments</Pill>
-              <span className="muted" style={{ marginLeft: 8 }}>Layout</span>
-              <Pill active={!vertical} onClick={() => setVertical(false)}>Horizontal</Pill>
-              <Pill active={vertical} onClick={() => setVertical(true)}>Vertical</Pill>
+              <span className="row" data-tour="tree-view" role="tablist" aria-label="View">
+                <span className="muted">View</span>
+                <ViewPill active={mode === 'reporting'} tour="tree-view-reporting" onClick={() => { setMode('reporting'); setCollapsed(new Set()); }}>Reporting line</ViewPill>
+                <ViewPill active={mode === 'department'} tour="tree-view-department" onClick={() => { setMode('department'); setCollapsed(new Set()); }}>Departments</ViewPill>
+              </span>
+              <span className="row" data-tour="tree-layout">
+                <span className="muted" style={{ marginLeft: 8 }}>Layout</span>
+                <Pill active={!vertical} onClick={() => setVertical(false)}>Horizontal</Pill>
+                <Pill active={vertical} onClick={() => setVertical(true)}>Vertical</Pill>
+              </span>
             </div>
             <div className="row">
               <SearchInput tour="tree-search" value={query} onChange={setQuery} placeholder="Search people, positions, departments…" />
@@ -269,7 +289,7 @@ export default function OrgTree() {
             </div>
           </div>
           <div className="row between" data-tour="tree-options">
-            <div className="row">
+            <div className="row" data-tour="tree-show">
               <span className="muted">Show</span>
               <Checkbox label="Photo" checked={options.photo} onChange={(e) => setOptions({ ...options, photo: e.target.checked })} />
               <Checkbox label="Position" checked={options.position} onChange={(e) => setOptions({ ...options, position: e.target.checked })} />
@@ -277,7 +297,7 @@ export default function OrgTree() {
               <Checkbox label="Email" checked={options.email} onChange={(e) => setOptions({ ...options, email: e.target.checked })} />
               <Checkbox label="Headcount" checked={options.count} onChange={(e) => setOptions({ ...options, count: e.target.checked })} />
             </div>
-            <div className="row">
+            <div className="row" data-tour="tree-zoom">
               <label className="row" style={{ gap: 6 }}>
                 <span className="muted">Zoom</span>
                 <input type="range" className="zoom-slider" min={0.3} max={1.6} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="Zoom" />
@@ -339,7 +359,7 @@ export default function OrgTree() {
                   onClick={isHr ? () => setEditNode(e) : undefined}
                   style={{ borderLeftColor: '#94a3b8' }}
                 >
-                  {options.photo ? <Avatar name={nameOf(e)} src={e.photo_path ? `/api/employees/${e.id}/photo` : undefined} size={30} /> : null}
+                  {options.photo ? <Avatar name={nameOf(e)} src={e.photo_path ? apiUrl(`/api/employees/${e.id}/photo`) : undefined} size={30} /> : null}
                   <div>
                     <div className="tree-name">{nameOf(e)}</div>
                     <div className="tree-sub">{e.position_title || e.employee_code}</div>
@@ -364,6 +384,11 @@ export default function OrgTree() {
       ) : null}
     </>
   );
+}
+
+/** View switch rendered as tabs, so the page tour can switch views and restore the user's view afterwards. */
+function ViewPill({ active, tour, onClick, children }: { active: boolean; tour: string; onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" role="tab" aria-selected={active} className={`pill ${active ? 'active' : ''}`} data-tour={tour} onClick={onClick}>{children}</button>;
 }
 
 /* ------------------------------------------------------------------ */

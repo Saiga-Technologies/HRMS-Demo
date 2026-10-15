@@ -3,6 +3,7 @@ import { all, get, insert, update, run, getSetting, parseJson, parseJsonAll, tra
 import { requireAuth, requireHr, requireRole, canAccessEmployee, visibleEmployeeIds } from '../auth.js';
 import { approverChain, canApproveFor, approvableEmployeeIds, defaultApprover } from '../approvers.js';
 import { badRequest, notFound, forbidden, pick, requireFields, audit, toInt, toNum, nowIso, today, wrap, eachDay, assertDate } from '../util.js';
+import { assertPeriodOpen } from '../ops/payrollCalendar.js';
 import { DEFAULT_LEAVE_SETTINGS, DEFAULT_ATTENDANCE_SETTINGS } from './settings.js';
 
 const r = Router();
@@ -175,6 +176,7 @@ r.post('/requests/:id/review', requireRole('manager'), wrap(async (req, res) => 
   if (!canApproveFor(req, l.employee_id)) throw forbidden('Only the reporting manager hierarchy or HR can review this request');
   const decision = req.body.decision === 'approve' ? 'approved' : req.body.decision === 'reject' ? 'rejected' : null;
   if (!decision) throw badRequest('decision must be approve or reject');
+  if (decision === 'approved') assertPeriodOpen(l.start_date, l.end_date);
   const year = Number(l.start_date.slice(0, 4));
   transaction(() => {
     if (l.status === 'pending') {
@@ -204,6 +206,7 @@ r.post('/requests/:id/cancel', requireAuth, wrap(async (req, res) => {
   if (!self && req.user!.role !== 'hr') throw forbidden();
   if (!['pending', 'approved', 'correction_pending'].includes(l.status)) throw badRequest(`Cannot cancel a ${l.status} request`);
   if (self && req.user!.role !== 'hr' && l.status !== 'pending' && l.start_date <= today()) throw badRequest('Leave that has already started can only be cancelled by HR');
+  if (l.status !== 'pending') assertPeriodOpen(l.start_date, l.end_date);
   transaction(() => {
     if (l.status !== 'pending') applyBalance(l.employee_id, l.leave_type_id, Number(l.start_date.slice(0, 4)), -l.days);
     update('leave_requests', l.id, { status: 'cancelled', correction: null, updated_at: nowIso(), review_note: req.body.note || l.review_note });
@@ -222,6 +225,7 @@ r.put('/requests/:id', requireAuth, wrap(async (req, res) => {
   const body = { ...l, ...pick(req.body, ['leave_type_id', 'start_date', 'end_date', 'half_day', 'reason']) };
   const { lt, halfDay, days } = validateRequest(l.employee_id, body, l.id);
   if (l.status === 'pending' || (req.user!.role === 'hr' && l.status === 'approved')) {
+    if (l.status === 'approved') assertPeriodOpen(l.start_date, l.end_date, body.start_date, body.end_date);
     transaction(() => {
       if (l.status === 'approved') {
         applyBalance(l.employee_id, l.leave_type_id, Number(l.start_date.slice(0, 4)), -l.days);

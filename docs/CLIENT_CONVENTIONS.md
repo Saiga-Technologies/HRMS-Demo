@@ -27,10 +27,18 @@ export default function MyPage() {
 ```
 
 Rules
-- Every page MUST call `usePageTour(name, steps)` with 3–8 steps. Steps point at `data-tour="..."`
-  attributes you add to the page (`PageHeader`, `Card`, `Table`, `Tabs`, `Stat` accept a `tour` prop,
-  or put `data-tour` on any element). Missing elements are skipped, so it is fine to tour tabs that
-  are not currently visible — but prefer steps that exist on first render.
+- Every page MUST call `usePageTour(name, steps)` exactly once (tabbed pages register ONE tour).
+  Tours teach the page's **workflow, in order** — there is no step cap:
+  1. a centred intro card (no `element`) saying what the page is for and the flow;
+  2. one step per feature in the order a user works (button → what it opens → where the result
+     shows → who is notified / what it unlocks next), with role notes ("Managers…", "HR can also…");
+  3. `tab: '<Tabs key>'` moves through tabs in workflow order (the engine clicks `[data-tab=key]`,
+     waits for the element, carries the tab forward and restores the user's tab at the end); steps
+     the user's role cannot see are skipped automatically;
+  4. a closing "what to do next" card linking the loop to related pages.
+  Steps point at `data-tour="..."` attributes (`PageHeader`, `Card`, `Table`, `Tabs`, `Stat` accept a
+  `tour` prop, or put `data-tour` on any element). Explain modal/drawer contents on the button that
+  opens them. E2E: `runTour(page, { minSteps })` walks the whole tour and returns the step titles.
 - Sub-sections of a module live in one page file using `Tabs` (e.g. `Payroll.tsx` has tabs
   Overview / Runs / Components / Adjustments / Settings). Routes are `module/*`, so you may also
   read `useParams`/`useSearchParams` for deep links (e.g. `/payroll?tab=runs`).

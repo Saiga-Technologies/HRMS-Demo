@@ -2,18 +2,32 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate, fmtDateTime } from '../lib/format';
 import { Badge, Button, Card, Checkbox, EmptyState, ExpiryDot, Field, Input, Modal, PageHeader, SearchInput, Select, Spinner, Stat, StatusBadge, Switch, Tabs, Textarea, useConfirm, useFetch, useForm, useToast } from '../components/ui';
 import { ALL_FORMATS, DocumentPreviewModal, DocumentUploadModal, EXPIRY_COLORS, ExpiryLegend, FORMAT_LABEL, FormatBadge, documentFileUrl, fmtBytes, type DirectoryEmployee, type DocumentRow, type DocumentType } from '../components/DocumentModals';
 
-const TOUR = [
-  { element: '[data-tour="documents-tabs"]', title: 'Browse documents', description: 'All documents, only those expiring soon, the compliance matrix (HR) and the document type catalogue (HR).' },
-  { element: '[data-tour="documents-filters"]', title: 'Filter', description: 'Search by title, file name or employee, and narrow by type or expiry state.' },
-  { element: '[data-tour="documents-legend"]', title: 'Colour legend', description: 'Each document gets a colour from its expiry date and the warning/critical windows of its type.' },
-  { element: '[data-tour="documents-upload"]', title: 'Upload', description: 'HR can upload a document for any employee. The accepted formats and size come from the document type.' },
-  { element: '[data-tour="documents-table"]', title: 'Documents', description: 'Preview in the browser, download, edit dates or delete. Rows are tinted when a document is expiring or expired.' },
-  { element: '[data-tour="doctype-add"]', title: 'Document types', description: 'Define which formats are accepted, whether an expiry date is required, the warning windows and whether every employee must have one.' },
+const TOUR: TourStep[] = [
+  { title: 'Documents', description: 'Every employee document in one place, with expiry tracking. The flow: 1) set up document types (formats, expiry rules), 2) upload documents against them, 3) watch the expiry colours and the Expiring list, 4) close the gaps shown in the Compliance matrix.' },
+  { element: '[data-tour="documents-tabs"]', title: 'Views', description: 'All documents and Expiring are open to everyone (you only see the people you are allowed to see). HR also gets the Compliance matrix and the Document types catalogue.' },
+  { element: '[data-tour="documents-stats"]', title: 'Counts by expiry state', tab: 'all', description: 'How many documents match, split by expiry state. Click a coloured tile to filter the table to that state; click it again to clear the filter.' },
+  { element: '[data-tour="documents-search"]', title: 'Search', description: 'Find a document by its title, original file name or the employee’s name.' },
+  { element: '[data-tour="documents-type-filter"]', title: 'Filter by type', description: 'Show only one document type, for example every Passport or every Work Visa.' },
+  { element: '[data-tour="documents-state-filter"]', title: 'Filter by expiry state', description: 'OK, Warning, Critical, Expired or No expiry. Same filter as the tiles above.' },
+  { element: '[data-tour="documents-upload"]', title: 'Upload a document', description: 'Opens the upload form: pick the employee and the document type, then the file. Only the formats and size the type allows are accepted, and types that require an expiry date will not save without one. HR uploads are marked Valid straight away.' },
+  { element: '[data-tour="documents-legend"]', title: 'Expiry colours', description: 'Each document is coloured from its expiry date and its type’s warning and critical windows: green is fine, yellow is inside the warning days, orange inside the critical days, red has expired, grey has no expiry date.' },
+  { element: '[data-tour="documents-table"]', title: 'The document list', description: 'Sorted by expiry, soonest first. Rows are tinted by expiry state, the Format column shows PDF/JPG/PNG and file size, and the Expiry column counts the days left. Click an employee’s name to open their profile on the Documents tab.' },
+  { element: '[data-tour="documents-status"]', title: 'Review status', description: 'Valid means HR uploaded or checked it. Documents an employee uploads from their own profile arrive as Pending review.' },
+  { element: '[data-tour="documents-review-queue"]', title: 'Review queue', description: 'HR’s count of documents waiting to be checked (also counted on the Documents menu badge and the bell). Click it to list only those, open each with Preview and use “Mark as reviewed” once it looks right.' },
+  { element: '[data-tour="documents-row-actions"]', title: 'Preview and download', description: 'Preview opens the file in the browser next to its details, where you can edit the title, number and dates (which re-colours the row). HR can also delete it there. Download saves the original file.' },
+  { element: '[data-tour="documents-stats"]', title: 'Next: what is expiring', tab: 'expiring', description: 'The Expiring view keeps only Warning, Critical and Expired documents, so this is the renewal to-do list. Chase the red and orange ones first.' },
+  { element: '[data-tour="documents-table"]', title: 'Renewal list', description: 'Open a document to update its expiry date once the renewed copy arrives, or upload the new copy for the employee. When nothing is due the list says so.' },
+  { element: '[data-tour="compliance-stats"]', title: 'Next: compliance', tab: 'compliance', description: 'The matrix checks every active employee against the document types marked “required for every employee”. The tiles show how many are fully compliant and how many have something missing or expired — click that tile to filter.' },
+  { element: '[data-tour="compliance-filters"]', title: 'Find the gaps', description: 'Search for an employee, or tick “Only employees with issues” to see just the people you need to chase.' },
+  { element: '[data-tour="compliance-matrix"]', title: 'Compliance matrix', description: 'One row per employee, one column per required type. Each cell shows the best document’s state and expiry date; Missing means nothing has been uploaded. Click a filled cell to preview that document. Issues counts missing plus expired.' },
+  { element: '[data-tour="doctype-add"]', title: 'Next: document types', tab: 'types', description: 'Document types are the rules behind everything above. Add one to define its accepted formats (PDF, JPG, PNG), maximum size, whether an expiry date is required, the warning and critical days, and whether every employee must have it.' },
+  { element: '[data-tour="doctype-table"]', title: 'Type catalogue', description: 'Each type with its formats, expiry rule, warning/critical windows, size limit and whether it is required for all (those become Compliance columns). Click a row to edit it; a type in use cannot be deleted, so mark it Inactive instead.' },
+  { title: 'What to do next', description: 'Keep the loop going: set the types, upload against them, work the Expiring list each week and clear the Compliance gaps. Employees see their own documents here and on their profile; HR letters you generate are filed with their documents too.' },
 ];
 
 type TabKey = 'all' | 'expiring' | 'compliance' | 'types';
@@ -52,6 +66,7 @@ function DocumentList({ expiring, types }: { expiring: boolean; types: DocumentT
   const [dq, setDq] = useState('');
   const [typeId, setTypeId] = useState('');
   const [state, setState] = useState('');
+  const [pendingOnly, setPendingOnly] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<DocumentRow | null>(null);
   useEffect(() => { const t = setTimeout(() => setDq(q.trim()), 250); return () => clearTimeout(t); }, [q]);
@@ -62,29 +77,32 @@ function DocumentList({ expiring, types }: { expiring: boolean; types: DocumentT
     [dq, typeId, state, expiring],
   );
   const directory = useFetch<DirectoryEmployee[]>(() => (isHr ? api.get('/api/employees/directory/all') : Promise.resolve([])), [isHr]);
-  const rows = list.data?.items || [];
+  const all = list.data?.items || [];
+  const pendingCount = useMemo(() => all.filter((d) => d.status === 'pending_review').length, [all]);
+  const rows = useMemo(() => (pendingOnly ? all.filter((d) => d.status === 'pending_review') : all), [all, pendingOnly]);
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
-    for (const d of rows) c[d.expiry_state] = (c[d.expiry_state] || 0) + 1;
+    for (const d of all) c[d.expiry_state] = (c[d.expiry_state] || 0) + 1;
     return c;
-  }, [rows]);
+  }, [all]);
   const stateOptions = expiring ? ['warning', 'critical', 'expired'] : STATES;
 
   return (
     <>
-      <div className="stat-strip">
-        <Stat label={expiring ? 'Expiring or expired' : 'Documents'} value={list.loading && !list.data ? '…' : list.data?.total ?? 0} onClick={() => setState('')} />
+      <div className="stat-strip" data-tour="documents-stats">
+        <Stat label={expiring ? 'Expiring or expired' : 'Documents'} value={list.loading && !list.data ? '…' : list.data?.total ?? 0} onClick={() => { setState(''); setPendingOnly(false); }} />
         {stateOptions.map((s) => (
           <Stat key={s} label={s === 'none' ? 'No expiry' : s.charAt(0).toUpperCase() + s.slice(1)} value={counts[s] || 0} color={EXPIRY_COLORS[s]} onClick={() => setState(state === s ? '' : s)} hint={state === s ? 'filtered' : undefined} />
         ))}
+        {isHr ? <Stat tour="documents-review-queue" label="Pending review" value={pendingCount} color="var(--warning)" onClick={() => setPendingOnly((v) => !v)} hint={pendingOnly ? 'filtered' : 'click to filter'} /> : null}
       </div>
       <div className="toolbar" data-tour="documents-filters">
-        <SearchInput value={q} onChange={setQ} placeholder="Search title, file or employee…" />
-        <Select value={typeId} onChange={(e) => setTypeId(e.target.value)} aria-label="Document type" data-testid="filter-doctype">
+        <SearchInput value={q} onChange={setQ} placeholder="Search title, file or employee…" tour="documents-search" />
+        <Select value={typeId} onChange={(e) => setTypeId(e.target.value)} aria-label="Document type" data-testid="filter-doctype" data-tour="documents-type-filter">
           <option value="">All types</option>
           {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </Select>
-        <Select value={state} onChange={(e) => setState(e.target.value)} aria-label="Expiry state" data-testid="filter-state">
+        <Select value={state} onChange={(e) => setState(e.target.value)} aria-label="Expiry state" data-testid="filter-state" data-tour="documents-state-filter">
           <option value="">{expiring ? 'Warning, critical & expired' : 'All states'}</option>
           {stateOptions.map((s) => <option key={s} value={s}>{s === 'none' ? 'No expiry' : s}</option>)}
         </Select>
@@ -101,7 +119,7 @@ function DocumentList({ expiring, types }: { expiring: boolean; types: DocumentT
               {list.loading && !list.data ? (
                 <tr><td colSpan={8}><Spinner /></td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="table-empty">{expiring ? 'Nothing is expiring. Nice.' : 'No documents match.'}</td></tr>
+                <tr><td colSpan={8} className="table-empty">{pendingOnly ? 'Nothing is waiting for review.' : expiring ? 'Nothing is expiring. Nice.' : 'No documents match.'}</td></tr>
               ) : rows.map((d) => (
                 <tr key={d.id} className={`row-${d.expiry_state}`} data-testid={`document-row-${d.id}`}>
                   <td><Link to={`/employees/${d.employee_id}?tab=documents`}><strong>{d.employee_name || `#${d.employee_id}`}</strong></Link>{d.employee_code ? <div className="muted mono">{d.employee_code}</div> : null}</td>
@@ -109,9 +127,9 @@ function DocumentList({ expiring, types }: { expiring: boolean; types: DocumentT
                   <td>{d.type_name || '—'}{d.category ? <div className="muted">{d.category}</div> : null}</td>
                   <td><FormatBadge format={d.format} /> <span className="muted">{fmtBytes(d.size_bytes)}</span></td>
                   <td><div>{fmtDate(d.expiry_date)}</div><ExpiryDot state={d.expiry_state} days={d.days_to_expiry} /></td>
-                  <td><StatusBadge status={d.status} /></td>
+                  <td data-tour="documents-status"><StatusBadge status={d.status} /></td>
                   <td className="muted">{fmtDateTime(d.created_at)}</td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-tour="documents-row-actions">
                     <Button size="sm" onClick={() => setPreview(d)} data-testid={`document-preview-${d.id}`}>Preview</Button>{' '}
                     <a className="btn btn-ghost btn-sm" href={documentFileUrl(d.id, true)} download={d.original_name}>Download</a>
                   </td>
@@ -156,17 +174,17 @@ function ComplianceTab() {
   const types = data.data?.types || [];
   return (
     <>
-      <div className="stat-strip">
+      <div className="stat-strip" data-tour="compliance-stats">
         <Stat label="Employees" value={totals.employees} />
         <Stat label="Fully compliant" value={totals.compliant} color={EXPIRY_COLORS.ok} />
         <Stat label="Missing or expired" value={totals.issues} color={EXPIRY_COLORS.expired} onClick={() => setOnlyIssues((v) => !v)} hint={onlyIssues ? 'filtered' : 'click to filter'} />
         <Stat label="Required types" value={types.length} hint="required for all" />
       </div>
-      <div className="toolbar" data-tour="documents-filters">
+      <div className="toolbar" data-tour="compliance-filters">
         <SearchInput value={q} onChange={setQ} placeholder="Search employee…" />
         <Checkbox label="Only employees with issues" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} />
       </div>
-      <Card padded={false} tour="documents-table" title={<ExpiryLegend withMissing />}>
+      <Card padded={false} tour="compliance-matrix" title={<ExpiryLegend withMissing />}>
         {data.loading && !data.data ? <Spinner /> : types.length === 0 ? (
           <EmptyState title="No required document types" description='Mark a document type as "required for all" to track compliance here.' />
         ) : (
@@ -215,7 +233,7 @@ function TypesTab({ types, loading, reload }: { types: DocumentType[]; loading: 
         <span className="help">Document types control accepted formats, size limits, expiry rules and which documents every employee must have.</span>
         <span style={{ marginLeft: 'auto' }} data-tour="doctype-add"><Button variant="primary" onClick={() => setEdit({})} data-testid="doctype-add">+ Add document type</Button></span>
       </div>
-      <Card padded={false} tour="documents-table">
+      <Card padded={false} tour="doctype-table">
         <div className="table-wrap">
           <table className="table">
             <thead>

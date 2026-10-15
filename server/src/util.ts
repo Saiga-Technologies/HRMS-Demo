@@ -1,3 +1,4 @@
+import { currentTenant } from './context.js';
 import type { Request, Response, NextFunction } from 'express';
 import { insert } from './db.js';
 
@@ -15,7 +16,29 @@ export const notFound = (m = 'Not found') => new HttpError(404, m);
 export const forbidden = (m = 'Forbidden') => new HttpError(403, m);
 
 export const nowIso = () => new Date().toISOString();
-export const today = () => new Date().toISOString().slice(0, 10);
+/** UTC offset (minutes) of an IANA time zone at `at` — handles daylight saving (US companies). */
+export function zoneOffsetMinutes(timeZone: string, at = new Date()): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(at);
+    const v = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+    const asUtc = Date.UTC(v('year'), v('month') - 1, v('day'), v('hour'), v('minute'), v('second'));
+    return Math.round((asUtc - Math.floor(at.getTime() / 1000) * 1000) / 60000);
+  } catch {
+    return 330;
+  }
+}
+/**
+ * Current company's offset from UTC in minutes. Follows the company's time zone (agency mode: each
+ * client company has its own); HRMS_TZ_OFFSET_MINUTES overrides it, and IST (+330) is the fallback.
+ */
+export function tzOffsetMinutes() {
+  const v = Number(process.env.HRMS_TZ_OFFSET_MINUTES);
+  if (process.env.HRMS_TZ_OFFSET_MINUTES !== undefined && Number.isFinite(v)) return v;
+  const tz = currentTenant()?.timezone;
+  return tz ? zoneOffsetMinutes(tz) : 330;
+}
+/** Today's date in the company's time zone (not UTC: just after midnight IST, UTC is still yesterday). */
+export const today = () => new Date(Date.now() + tzOffsetMinutes() * 60000).toISOString().slice(0, 10);
 
 /** Wrap async route handlers so rejections reach the error middleware. */
 export const wrap =

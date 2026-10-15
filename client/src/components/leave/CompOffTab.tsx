@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { api, qs } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useCounts } from '../../lib/notifications';
-import { fmtDate, fmtDateTime, fmtMinutes, label } from '../../lib/format';
+import { fmtDate, fmtDateTime, fmtMinutes, label, todayIso } from '../../lib/format';
 import { Badge, Button, Card, EmptyState, Input, Pill, Spinner, StatusBadge, Table, useConfirm, useFetch, useToast } from '../ui';
 import { Icon } from '../Icons';
 import { BalanceCards } from './MyLeave';
@@ -19,7 +19,7 @@ export function ReasonChip({ c }: { c: CompOffCredit }) {
 }
 function ExpiryText({ c }: { c: CompOffCredit }) {
   if (!c.expires_on) return <span className="muted">—</span>;
-  const days = Math.round((Date.parse(c.expires_on + 'T00:00:00') - Date.parse(new Date().toISOString().slice(0, 10) + 'T00:00:00')) / 86400000);
+  const days = Math.round((Date.parse(c.expires_on + 'T00:00:00') - Date.parse(todayIso() + 'T00:00:00')) / 86400000);
   if (c.expired || days < 0) return <span className="late">Expired {fmtDate(c.expires_on)}</span>;
   return <span className={days <= 14 ? 'late' : ''}>{fmtDate(c.expires_on)}<span className="muted"> · {days === 0 ? 'today' : `${days}d left`}</span></span>;
 }
@@ -148,7 +148,7 @@ export default function CompOffTab() {
               ) : <span className="muted">No {coCode} leave type is active. HR can add one under Leave types.</span>}
               <p className="help mt" style={{ marginTop: 10 }}>Approved credits are added to this balance for the year of the worked date; apply for leave with the {coCode} type to use them.</p>
             </Card>
-            <Card title="Summary">
+            <Card title="Summary" tour="compoff-summary">
               <div className="compoff-summary">
                 {['detected', 'pending', 'approved', 'rejected', 'expired'].map((s) => (
                   <div key={s} className="compoff-summary-item"><StatusBadge status={s} label={label(s)} /><strong className="num">{mine.filter((c) => c.status === s).length}</strong></div>
@@ -156,7 +156,7 @@ export default function CompOffTab() {
               </div>
             </Card>
           </div>
-          <Card padded={false} title="My comp-off credits" className="mb">
+          <Card padded={false} title="My comp-off credits" className="mb" tour="compoff-credits">
             <Table<CompOffCredit> rows={mine} columns={creditColumns(false)} empty="No comp-off credits yet." />
           </Card>
         </>
@@ -196,7 +196,7 @@ export default function CompOffTab() {
       ) : null}
 
       {isManager ? (
-        <Card padded={false} title={isHr ? 'All credits' : 'Team credits'} className="mb"
+        <Card padded={false} title={isHr ? 'All credits' : 'Team credits'} className="mb" tour="compoff-team"
           actions={
             <span className="row">
               {['', 'detected', 'pending', 'approved', 'rejected', 'expired'].map((s) => <Pill key={s || 'all'} active={teamStatus === s} onClick={() => setTeamStatus(s)}>{s ? label(s) : 'All'}</Pill>)}

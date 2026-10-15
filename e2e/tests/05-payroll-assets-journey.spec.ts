@@ -5,7 +5,7 @@ test.describe('payroll', () => {
   test('HR creates and processes a pay run, approves it, and the employee can view the payslip', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/payroll');
-    await runTour(page);
+    await runTour(page, { minSteps: 15 });
     await page.goto('/payroll?tab=runs');
     await page.getByTestId('payroll-new-run').click();
     const m = page.getByRole('dialog');
@@ -37,7 +37,7 @@ test.describe('assets', () => {
   test('HR registers an asset and assigns it; the employee sees it', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/assets');
-    await runTour(page);
+    await runTour(page, { minSteps: 9 });
     await page.getByTestId('asset-add').click();
     const m = page.getByRole('dialog');
     await m.getByLabel(/^Name/).fill('Logitech MX Keys');
@@ -63,7 +63,7 @@ test.describe('employee journey', () => {
   test('HR customises stage templates and advances an employee journey', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/journey');
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
     await page.goto('/journey?tab=templates');
     await page.getByTestId('template-add').click();
     const m = page.getByRole('dialog');
@@ -82,7 +82,7 @@ test.describe('employee journey', () => {
   test('job descriptions and vacancies', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/jobs');
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
     await page.getByTestId('jd-add').click();
     const m = page.getByRole('dialog');
     await m.getByLabel(/^Title/).fill('Data Analyst');
@@ -99,7 +99,7 @@ test.describe('employee journey', () => {
     await runTour(page);
     await expect(page.locator('.tree-node').first()).toBeVisible();
     await expect(page.getByText('Priya Nair').first()).toBeVisible();
-    await page.getByRole('button', { name: /Departments/ }).first().click();
+    await page.getByRole('tab', { name: /Departments/ }).first().click();
     await expect(page.getByText('Engineering').first()).toBeVisible();
   });
 });

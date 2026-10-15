@@ -1,5 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { app, request, hr, employee, manager, auth, cleanup, sampleFile } from './helpers.js';
+import { today as companyToday, addDays as addDaysUtil } from '../src/util.js';
 
 afterAll(cleanup);
 
@@ -74,8 +75,8 @@ describe('documents', () => {
     const fake = await request(app).post('/api/documents').set(auth(t)).field('employee_id', '6').field('document_type_id', String(passport.id)).field('expiry_date', '2030-01-01').attach('file', Buffer.from('not a pdf at all'), { filename: 'x.pdf', contentType: 'application/pdf' });
     expect(fake.status).toBe(400);
     // good upload expiring in 10 days -> warning for passport (warn 180, critical 30 => critical)
-    const d = new Date(); d.setUTCDate(d.getUTCDate() + 10);
-    const ok = await request(app).post('/api/documents').set(auth(t)).field('employee_id', '6').field('document_type_id', String(passport.id)).field('title', 'My passport').field('expiry_date', d.toISOString().slice(0, 10)).attach('file', sampleFile('pdf'), 'passport.pdf');
+    const expiry = addDaysUtil(companyToday(), 10);
+    const ok = await request(app).post('/api/documents').set(auth(t)).field('employee_id', '6').field('document_type_id', String(passport.id)).field('title', 'My passport').field('expiry_date', expiry).attach('file', sampleFile('pdf'), 'passport.pdf');
     expect(ok.status).toBe(201);
     expect(ok.body.expiry_state).toBe('critical');
     expect(ok.body.expiry_color).toBe('#ea580c');

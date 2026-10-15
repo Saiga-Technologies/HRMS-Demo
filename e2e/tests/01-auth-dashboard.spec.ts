@@ -45,7 +45,7 @@ test.describe('dashboard', () => {
     await page.getByText('Headcount', { exact: true }).first().click();
     await expect(page).toHaveURL(/\/employees/);
     await page.goto('/');
-    await runTour(page);
+    await runTour(page, { minSteps: 20 });
     await page.getByRole('button', { name: 'Reset layout' }).click();
     await expectToast(page, 'success');
     await expect(page.getByTestId('dash-card')).toHaveCount(initial);

@@ -37,7 +37,7 @@ export const CARD_CATALOG: CatalogEntry[] = [
   { type: 'stat', key: 'my_payslip_requests', title: 'My payslip requests', roles: ALL, category: 'Personal', icon: 'file', size: 'sm', description: 'Shortcut to request a payslip and track open requests.' },
   // ---- charts
   { type: 'chart', key: 'today_attendance', title: "Today's attendance", roles: MGMT, category: 'Attendance', icon: 'clock', size: 'md', chart: 'donut', description: 'Present, late, on leave, absent and not yet in.' },
-  { type: 'chart', key: 'attendance_trend', title: 'Attendance trend', roles: MGMT, category: 'Attendance', icon: 'trendingUp', size: 'lg', chart: 'line', description: 'Present, absent and late per working day for the last 30 working days.' },
+  { type: 'chart', key: 'attendance_trend', title: 'Attendance trend', roles: MGMT, category: 'Attendance', icon: 'trendingUp', size: 'md', chart: 'line', description: 'Present, absent and late per working day for the last 30 working days.' },
   { type: 'chart', key: 'late_comers', title: 'Late comers', roles: MGMT, category: 'Attendance', icon: 'alert', size: 'md', chart: 'hbar', description: 'Top 8 employees by late days this month.' },
   { type: 'chart', key: 'work_hours_distribution', title: 'Work hours distribution', roles: MGMT, category: 'Attendance', icon: 'grid', size: 'md', chart: 'bar', description: 'Average daily work hours per employee, bucketed.' },
   { type: 'chart', key: 'headcount_by_department', title: 'Headcount by department', roles: MGMT, category: 'People', icon: 'sitemap', size: 'md', chart: 'hbar' },
@@ -239,7 +239,7 @@ r.get('/data', requireAuth, (req, res) => {
   // ---- leave
   const leave_utilisation = all<any>(`SELECT ty.id, ty.name, ty.color, COALESCE(SUM(b.allocated + b.carried + b.adjusted), 0) AS allocated, COALESCE(SUM(b.used), 0) AS used FROM leave_types ty LEFT JOIN leave_balances b ON b.leave_type_id = ty.id AND b.year = ? AND b.employee_id IN (SELECT e.id FROM employees e WHERE e.status != 'exited'${scope('e.id')}) WHERE ty.active = 1 GROUP BY ty.id ORDER BY allocated DESC, ty.name`, [year]);
   const leave_calendar_heat = eachDay(t, addDays(t, 13)).map((d) => { const away = leavesInRange.filter((l) => d >= l.start_date && d <= l.end_date); const names = Array.from(new Set(away.map((l) => l.employee_name))); return { date: d, count: names.length, names: names.slice(0, 4), off: isOff(d, holidaySet) }; });
-  const myBal = eid ? all<any>('SELECT b.*, t.name, t.color, (b.allocated + b.carried + b.adjusted - b.used) AS available FROM leave_balances b JOIN leave_types t ON t.id = b.leave_type_id WHERE b.employee_id = ? AND b.year = ? AND t.active = 1', [eid, year]) : [];
+  const myBal = eid ? all<any>('SELECT b.*, t.name, t.color, t.paid, t.annual_quota, (b.allocated + b.carried + b.adjusted - b.used) AS available FROM leave_balances b JOIN leave_types t ON t.id = b.leave_type_id WHERE b.employee_id = ? AND b.year = ? AND t.active = 1', [eid, year]) : [];
 
   // ---- approvals in scope (manager chain excludes self for approvals)
   const approvalScope = (col: string) => (chain ? ` AND ${col} IN (${chain.join(',') || 'NULL'})` : '');
@@ -304,7 +304,7 @@ r.get('/data', requireAuth, (req, res) => {
     open_vacancies: recruitment_funnel.openings,
     assets_assigned: assetCounts.assigned,
     payroll_last_net: lastRun ? { period: lastRun.period, net: lastRun.totals?.net ?? 0, status: lastRun.status } : null,
-    my_leave_balance: myBal.reduce((s, b) => s + b.available, 0),
+    my_leave_balance: myBal.filter(isEverydayLeave).reduce((s, b) => s + b.available, 0),
     my_leave_balance_detail: myBal,
     my_hours_this_month: eid ? r1(get<any>('SELECT COALESCE(SUM(work_minutes),0) AS m FROM attendance_records WHERE employee_id = ? AND date >= ?', [eid, monthStart])!.m / 60) : 0,
     my_payslip_requests: eid ? { pending: n('SELECT COUNT(*) AS n FROM payslip_requests WHERE employee_id = ? AND status = \'pending\'', [eid]), fulfilled: n('SELECT COUNT(*) AS n FROM payslip_requests WHERE employee_id = ? AND status = \'fulfilled\'', [eid]) } : { pending: 0, fulfilled: 0 },
@@ -353,3 +353,8 @@ function nextBirthday(dob: string) {
 }
 
 export default r;
+
+/** Leave a person draws on routinely. Unpaid leave and long special entitlements (e.g. maternity) would swamp the totals. */
+export function isEverydayLeave(b: { paid: number; annual_quota: number }) {
+  return Number(b.paid) === 1 && Number(b.annual_quota) <= 60;
+}
