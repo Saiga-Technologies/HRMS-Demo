@@ -17,7 +17,9 @@ test.describe('announcements', () => {
     await login(page, USERS.hr);
     await page.goto('/announcements');
     await expect(page.getByTestId('announcement-item').first()).toBeVisible();
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
+    // The tour ends on the Manage tab; go back to the feed even if it ended mid-animation.
+    await page.getByTestId('tab-feed').click();
 
     await page.getByTestId('announcement-new').click();
     const modal = page.getByTestId('announcement-modal');

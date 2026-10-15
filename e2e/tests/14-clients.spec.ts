@@ -5,7 +5,9 @@ test.describe('clients & placements', () => {
   test('HR runs the tour, adds a client, places an employee and activates the placement', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/clients');
-    await runTour(page);
+    await runTour(page, { minSteps: 15 });
+    // The tour ends on Placements; go back to Clients even if it ended mid-animation.
+    await page.getByTestId('tab-clients').click();
 
     // Demo clients are created on first listing.
     await expect(page.getByTestId('client-row-name').filter({ hasText: 'Nimbus Retail' })).toBeVisible();

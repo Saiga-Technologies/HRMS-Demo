@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../lib/api';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate, todayIso } from '../lib/format';
 import { Badge, Button, Card, PageHeader, Spinner, Stat, useFetch } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -48,13 +48,20 @@ function gridFor(month: string) {
   return { start, end: addDays(start, weeks * 7 - 1), days: Array.from({ length: weeks * 7 }, (_, i) => addDays(start, i)) };
 }
 
-const TOUR = [
-  { element: '[data-tour="cal-stats"]', title: 'This month at a glance', description: 'Overdue items, what falls due in the next seven days, and how many payroll milestones and statutory filings land this month across every company you look after.' },
-  { element: '[data-tour="cal-nav"]', title: 'Move through months', description: 'Step back and forward a month, jump to today, and switch between the month grid and an agenda list.' },
-  { element: '[data-tour="cal-filters"]', title: 'Filters', description: 'Narrow by company, by kind (payroll milestones, statutory filings, invoice due dates), by who owns the step (agency or client) and by status.' },
-  { element: '[data-tour="cal-legend"]', title: 'Reading an event', description: 'The fill shows the kind; the left stripe is the company\'s brand colour. Overdue items are outlined in red and done items are struck through.' },
-  { element: '[data-tour="cal-grid"]', title: 'The calendar', description: 'Today is highlighted. Click any event to jump to it: payroll steps open the company\'s payroll calendar, filings open its compliance list, invoices open billing.' },
-  { element: '[data-tour="cal-week"]', title: 'This week', description: 'The next payroll step for each company with a countdown, so nothing slips between inputs, attendance cut-off, generation, approval and payment.' },
+const TOUR: TourStep[] = [
+  { title: 'Payroll & compliance calendar', description: 'Every dated deadline across your client companies in one place: payroll milestones, statutory filings and invoice due dates. The flow: 1) clear what is overdue, 2) work this week\'s payroll countdown, 3) filter to a company or kind, 4) click an event to act on it.', tab: '[data-testid="cal-view-month"]' },
+  { element: '[data-tour="cal-stats"]', title: 'This month at a glance', description: 'Four counters for the dates you are looking at, across every company you look after.' },
+  { element: '[data-tour="cal-stat-overdue"]', title: 'Overdue first', description: 'Milestones and filings whose date has passed and are not done. Click to show only overdue items in the calendar below.' },
+  { element: '[data-tour="cal-stat-next7"]', title: 'Due in the next 7 days', description: 'Everything still open that falls due within a week. These are the items that turn red next.' },
+  { element: '[data-tour="cal-stat-payroll"]', title: 'Payroll milestones', description: 'How many payroll steps land this month. Click to show only payroll events.' },
+  { element: '[data-tour="cal-stat-filings"]', title: 'Statutory filings', description: 'How many statutory returns fall due this month (PF, ESI, TDS, WPS, GOSI, federal deposits and so on). Click to show only filings.' },
+  { element: '[data-tour="cal-week"]', title: 'This week: payroll countdown', description: 'The next open payroll step for each company, nearest first, with days left (or days late) and whether it waits on the client or is an agency task. Steps count back from pay day in working days: inputs T-7, attendance cut-off T-5, generation T-3, client approval T-2, payment on pay day. Click one to open that company\'s payroll calendar.' },
+  { element: '[data-tour="cal-nav"]', title: 'Move through months', description: 'Step back and forward a month and jump back to today. Month shows the grid; Agenda lists the same events day by day.' },
+  { element: '[data-tour="cal-filters"]', title: 'Filters', description: 'Narrow by company, by kind (payroll, compliance, invoice), by owner (agency or client) and by status. The Calendar button on a portfolio card opens this page already filtered to that company.' },
+  { element: '[data-tour="cal-legend"]', title: 'Reading an event', description: 'The fill shows the kind; the left stripe is the company\'s brand colour. Overdue items carry a warning icon and a red outline; done items show a tick.' },
+  { element: '[data-tour="cal-grid"]', title: 'The month grid', description: 'Today is highlighted and days with something overdue are flagged. Busy days show three events and a "+ more" link. Click an event to act on it: payroll steps open the company\'s payroll calendar, filings open its compliance list, invoices open Billing.' },
+  { element: '[data-tour="cal-grid"]', title: 'Agenda view', description: 'The same events as a list for the month, each with its owner (agency or client) and a countdown badge. Handy with filters, for example all client-owned steps this month.', tab: '[data-testid="cal-view-agenda"]' },
+  { title: 'What to do next', description: 'Open each overdue or due-soon item and complete it inside the company: lock attendance at T-5, generate payroll at T-3, nudge the client for approval at T-2, and mark filings as filed with their acknowledgement. Requests and invoices are worked on the Service desk and Billing pages.' },
 ];
 
 function MultiPick<T extends string>({ label, options, value, onChange, testId }: { label: string; options: { value: T; label: React.ReactNode }[]; value: T[]; onChange: (v: T[]) => void; testId?: string }) {
@@ -168,10 +175,10 @@ export default function AgencyCalendar() {
       <PageHeader title="Payroll & compliance calendar" subtitle="Payroll milestones, statutory filings and invoice due dates for every client company in one place." />
 
       <div className="stat-strip" data-tour="cal-stats">
-        <Stat label="Overdue" value={cal.data ? stats.overdue : '…'} icon="alert" color="var(--danger)" hint="In the visible range" onClick={() => setStatuses(['overdue'])} />
-        <Stat label="Due in 7 days" value={cal.data ? stats.next7 : '…'} icon="clock" color="var(--warning)" hint="Not done yet" />
-        <Stat label="Payroll milestones" value={cal.data ? stats.payroll : '…'} icon="banknote" color="var(--brand)" hint={monthTitle(month)} onClick={() => setKinds(['payroll'])} />
-        <Stat label="Statutory filings" value={cal.data ? stats.filings : '…'} icon="shield" color="var(--accent)" hint={monthTitle(month)} onClick={() => setKinds(['compliance'])} />
+        <Stat label="Overdue" tour="cal-stat-overdue" value={cal.data ? stats.overdue : '…'} icon="alert" color="var(--danger)" hint="In the visible range" onClick={() => setStatuses(['overdue'])} />
+        <Stat label="Due in 7 days" tour="cal-stat-next7" value={cal.data ? stats.next7 : '…'} icon="clock" color="var(--warning)" hint="Not done yet" />
+        <Stat label="Payroll milestones" tour="cal-stat-payroll" value={cal.data ? stats.payroll : '…'} icon="banknote" color="var(--brand)" hint={monthTitle(month)} onClick={() => setKinds(['payroll'])} />
+        <Stat label="Statutory filings" tour="cal-stat-filings" value={cal.data ? stats.filings : '…'} icon="shield" color="var(--accent)" hint={monthTitle(month)} onClick={() => setKinds(['compliance'])} />
       </div>
 
       <div className="cal-layout">

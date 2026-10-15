@@ -19,7 +19,7 @@ export function ReviewSteps({ review }: { review: Review }) {
     { label: 'Acknowledged', at: review.acknowledged_at },
   ];
   return (
-    <div className="row" style={{ gap: 6 }} data-testid="review-steps">
+    <div className="row" style={{ gap: 6 }} data-testid="review-steps" data-tour="perf-review-steps">
       {steps.map((s, i) => {
         // A step is done once the review has moved past it (completed counts as done when status is completed or later).
         const done = i < idx || (i === idx && (review.status === 'completed' || review.status === 'acknowledged') && i >= 2);
@@ -164,12 +164,12 @@ export function ReviewEditor({ review, mode, onSaved, canAcknowledge }: { review
         </div>
       ) : null}
 
-      <div>
+      <div data-tour="perf-goals">
         <div className="section-title">Goals</div>
         <GoalsEditor goals={goals} onChange={setGoals} readOnly={mode === 'view'} />
       </div>
 
-      <div className="grid grid-2">
+      <div className="grid grid-2" data-tour="perf-comments">
         <div>
           <div className="section-title">Self-assessment comments</div>
           {mode === 'self'
@@ -195,14 +195,14 @@ export function ReviewEditor({ review, mode, onSaved, canAcknowledge }: { review
         <div className="row">
           {mode === 'self' || mode === 'manager' ? (
             <>
-              <Button onClick={() => save(false)} loading={busy === 'save'} disabled={!!busy} data-testid="review-save">Save draft</Button>
+              <Button onClick={() => save(false)} loading={busy === 'save'} disabled={!!busy} data-testid="review-save" data-tour="perf-review-actions">Save draft</Button>
               <Button variant="primary" onClick={() => save(true)} loading={busy === 'submit'} disabled={!!busy} data-testid="review-submit">
                 <Icon name="send" size={15} /> {mode === 'self' ? 'Submit self-assessment' : 'Complete review'}
               </Button>
             </>
           ) : null}
           {mode === 'view' && canAcknowledge && review.status === 'completed' ? (
-            <Button variant="primary" onClick={acknowledge} loading={busy === 'ack'} data-testid="review-acknowledge"><Icon name="check" size={15} /> Acknowledge</Button>
+            <Button variant="primary" onClick={acknowledge} loading={busy === 'ack'} data-testid="review-acknowledge" data-tour="perf-review-actions"><Icon name="check" size={15} /> Acknowledge</Button>
           ) : null}
         </div>
       </div>

@@ -99,7 +99,7 @@ export function RosterGrid({ data, loading, today, canEdit, onCellClick, highlig
                 {e.days.map((d, i) => (
                   <td key={d.date} style={{ padding: 4, background: d.date === today ? 'color-mix(in srgb, var(--brand) 5%, transparent)' : undefined }}>
                     {editable ? (
-                      <button type="button" data-testid={`roster-cell-${i}`} data-date={d.date} onClick={() => onCellClick(e, d)}
+                      <button type="button" data-tour="roster-cell" data-testid={`roster-cell-${i}`} data-date={d.date} onClick={() => onCellClick(e, d)}
                         aria-label={`Assign shift for ${e.first_name} ${e.last_name} on ${d.date}`}
                         style={{ display: 'block', width: '100%', padding: 0, border: 0, background: 'none', cursor: 'pointer', font: 'inherit', color: 'inherit', borderRadius: 6 }}>
                         <ShiftChip day={d} shifts={data.shifts} />

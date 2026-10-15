@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { fmtDateTime } from '../lib/format';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { Icon } from '../components/Icons';
 import { PageHeader, Card, Table, Button, Field, Input, Checkbox, Modal, Tabs, Stat, Badge, StatusBadge, useFetch, useToast, useConfirm, useForm } from '../components/ui';
 
@@ -12,14 +12,26 @@ interface Webhook { id: number; url: string; events: string[]; active: number; h
 interface Delivery { id: number; event: string; status_code: number | null; ok: number; error: string | null; attempted_at: string; payload: string }
 interface Overview { keys: ApiKey[]; webhooks: Webhook[]; scopes: Option[]; events: Option[]; careers: { path: string; open_jobs: number; applications_30d: number; api_candidates_30d: number } }
 
-const TOUR = [
-  { element: '[data-tour="int-stats"]', title: 'At a glance', description: 'Open jobs on the public careers page, applications it brought in and candidates pushed by API keys over the last 30 days.' },
-  { element: '[data-tour="int-careers"]', title: 'Public careers page', description: 'Every open vacancy is listed here for candidates, with its published job description. Applications land in Recruitment → New, parsed and scored.' },
-  { element: '[data-tour="int-tabs"]', title: 'Keys and webhooks', description: 'API keys let job boards push candidates in; webhooks push recruitment events out to your other tools.' },
-  { element: '[data-tour="int-keys"]', title: 'API keys', description: 'Each key has scopes. The full key is shown once when created; afterwards only its prefix. Revoke a key to block it immediately.' },
-  { element: '[data-tour="int-key-add"]', title: 'Create a key', description: 'Name it after the system that will use it, pick its scopes and copy the key into that system.' },
-  { element: '[data-tour="int-webhooks"]', title: 'Webhooks', description: 'Signed JSON POSTs on candidate created, moved and hired. Send a test ping and read the delivery log to debug.' },
-  { element: '[data-tour="int-docs"]', title: 'Quick reference', description: 'The endpoints, headers and signature format to hand to whoever builds the integration.' },
+const TOUR: TourStep[] = [
+  { title: 'Integrations and API', description: 'How candidates get into Recruitment from outside, and how other tools hear about them. The flow: 1) share your public careers page, 2) create API keys for job boards that push candidates in (and revoke them when done), 3) add webhooks that tell your other systems when candidates arrive, move or are hired, test them and read their log, and 4) hand the quick reference to whoever builds the connection.' },
+  { element: '[data-tour="int-stats"]', title: 'At a glance', description: 'Open jobs listed on the careers page, applications it brought in and candidates pushed in by API keys over the last 30 days, plus how many keys and webhooks are active.' },
+  { element: '[data-testid="careers-open"]', title: 'See the careers page', description: 'Opens your public careers page in a new tab, exactly as candidates see it. No sign-in is needed there.' },
+  { element: '[data-tour="int-careers"]', title: 'Share the careers link', description: 'Copy this link onto your website and social profiles. Every open vacancy in Recruitment is listed automatically with its job description, and applications land in Recruitment as new candidates with the CV parsed and scored.' },
+  { element: '[data-tour="int-tabs"]', title: 'Keys, webhooks, reference', description: 'API keys bring candidates in, webhooks push events out, and the quick reference explains both. A red badge on Webhooks counts active webhooks whose last delivery failed.' },
+  { element: '[data-tour="int-keys"]', title: 'Next, API keys', description: 'One key per job board or tool that sends you candidates. The table shows each key\'s name, the first characters of the key, its scopes, when it was last used and whether it is active.', tab: 'keys' },
+  { element: '[data-tour="int-key-add"]', title: 'Create a key', description: 'Opens a form: name the key after the system that will use it and tick its scopes. The full key is shown once, right after you create it, so copy it into the other system straight away; afterwards only its prefix is shown.' },
+  { element: '[data-tour="int-keys"] th:nth-child(3)', title: 'Scopes', description: 'What each key may do: candidates:write lets it create candidates (with or without a CV), jobs:read lets it read the open jobs list. Give each key only what it needs.' },
+  { element: '[data-tour="int-keys"] th:nth-child(4)', title: 'Last used and status', description: 'When the key was last used to call the API, and whether it is active or revoked. A key that has never been used may not be set up on the other side yet.' },
+  { element: '[data-tour="int-keys"] [data-testid^="key-revoke-"]', title: 'Revoke a key', description: 'When a partnership ends or a key may have leaked, revoke it: it stops working immediately and cannot be re-enabled. Create a new key if you need access again; the bin icon removes it from the list.' },
+  { element: '[data-tour="int-webhooks"]', title: 'Next, webhooks', description: 'Webhooks send a signed JSON POST to another system whenever something happens in Recruitment, so your ATS, Slack bridge or data warehouse stays in sync.', tab: 'webhooks' },
+  { element: '[data-testid="webhook-add"]', title: 'Add a webhook', description: 'Opens a form for the endpoint URL, an optional signing secret (adds an HMAC-SHA256 signature header) and the events to send: candidate created, candidate moved between stages, and candidate hired.' },
+  { element: '[data-tour="int-webhooks"] th:nth-child(2)', title: 'Events', description: 'The events each endpoint receives. "Signed" under the URL means a signing secret is set, so the receiver can check each request really came from you.' },
+  { element: '[data-tour="int-webhooks"] th:nth-child(3)', title: 'Last delivery', description: 'Whether the latest delivery got a 2xx answer (OK) or not (Failed), and when. Deliveries time out after 5 seconds and are not retried, so watch for Failed here.' },
+  { element: '[data-tour="int-webhooks"] [data-testid^="webhook-test-"]', title: 'Test, log, pause', description: 'Send test pings the endpoint now and tells you whether it arrived. Log shows the last 20 attempts with the exact payload. Pause stops deliveries without losing the setup; the pencil edits the URL, secret or events, and the bin deletes the webhook and its log.' },
+  { element: '[data-tour="int-docs-push"]', title: 'Next, quick reference', description: 'Copy-ready examples for the developer: push a candidate as JSON, or upload a CV file so it is parsed and scored, using the X-API-Key header.', tab: 'docs' },
+  { element: '[data-tour="int-docs-jobs"]', title: 'Read open jobs', description: 'How a job board reads your open vacancies (the same list as the careers page), and what each scope allows.' },
+  { element: '[data-tour="int-docs-webhooks"]', title: 'Webhook payloads', description: 'The headers and body every webhook receives, how the signature is calculated, and the list of events.' },
+  { title: 'What to do next', description: 'Share the careers link, give each job board its own key, and add a webhook for any tool that needs to know about candidates. Everything that comes in appears in Recruitment, where you screen, move and hire candidates; hiring then fires the "candidate hired" webhook.' },
 ];
 
 type TabKey = 'keys' | 'webhooks' | 'docs';
@@ -267,7 +279,7 @@ function Docs({ origin, events, scopes }: { origin: string; events: Option[]; sc
   const block = (s: string) => <pre className="mono" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: 0 }}>{s}</pre>;
   return (
     <div className="detail-grid" data-tour="int-docs">
-      <Card title="Push a candidate">
+      <Card title="Push a candidate" tour="int-docs-push">
         <div className="stack">
           <span className="muted">Needs a key with <code>candidates:write</code>. Send JSON, or multipart with a <code>cv</code> file (PDF, DOCX, TXT) to have it parsed and scored.</span>
           {block(`curl -X POST ${origin}/api/public/v1/candidates \\
@@ -278,7 +290,7 @@ function Docs({ origin, events, scopes }: { origin: string; events: Option[]; sc
   -H "X-API-Key: hrms_…" -F vacancy_id=1 -F cv=@resume.pdf`)}
         </div>
       </Card>
-      <Card title="Read open jobs">
+      <Card title="Read open jobs" tour="int-docs-jobs">
         <div className="stack">
           <span className="muted">Needs <code>jobs:read</code>. Returns the vacancies shown on the careers page with their job descriptions.</span>
           {block(`curl ${origin}/api/public/v1/jobs -H "X-API-Key: hrms_…"`)}
@@ -286,7 +298,7 @@ function Docs({ origin, events, scopes }: { origin: string; events: Option[]; sc
           <ul style={{ margin: 0, paddingLeft: 18 }}>{scopes.map((s) => <li key={s.key}><code>{s.key}</code> — {s.description}</li>)}</ul>
         </div>
       </Card>
-      <Card title="Webhook payloads">
+      <Card title="Webhook payloads" tour="int-docs-webhooks">
         <div className="stack">
           {block(`POST <your URL>
 Content-Type: application/json

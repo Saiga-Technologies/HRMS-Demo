@@ -5,7 +5,9 @@ test.describe('integrations & API', () => {
   test('HR creates an API key that is shown once, uses it, revokes it, and manages a webhook', async ({ page, request, baseURL }) => {
     await login(page, USERS.hr);
     await page.goto('/integrations');
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
+    // The tour ends on Quick reference; go back to API keys even if it ended mid-animation.
+    await page.getByTestId('tab-keys').click();
     await expect(page.getByTestId('careers-url')).toContainText('/careers');
 
     // Create a key; the full value is shown once.

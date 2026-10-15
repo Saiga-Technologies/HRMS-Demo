@@ -36,7 +36,7 @@ export function AllRequests({ types, employees, holidays, weeklyOffs, sandwich }
         <Input type="date" value={filters.from} onChange={(e) => set('from', e.target.value)} aria-label="From" />
         <Input type="date" value={filters.to} onChange={(e) => set('to', e.target.value)} aria-label="To" />
         <span className="muted">{rows.length} requests</span>
-        <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setApply(true)} data-testid="leave-apply-behalf">+ Apply on behalf</Button>
+        <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setApply(true)} data-testid="leave-apply-behalf" data-tour="leave-apply-behalf">+ Apply on behalf</Button>
       </div>
       <Card padded={false} tour="leave-all">
         <RequestsTable

@@ -24,7 +24,7 @@ export function Margin({ p }: { p: Placement }) {
   if (p.bill_rate == null || p.pay_rate == null) return <span className="muted">—</span>;
   const color = p.monthly_margin < 0 ? 'var(--danger-ink)' : p.margin_pct < 15 ? 'var(--warning-ink)' : 'var(--success-ink)';
   return (
-    <span>
+    <span data-tour="placement-margin">
       <strong style={{ color }}>{fmtMoney(p.monthly_margin, p.billing_currency)}</strong>
       <span className="muted"> /mo · {p.margin_pct}%</span>
     </span>

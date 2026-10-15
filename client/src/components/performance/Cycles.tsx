@@ -80,7 +80,7 @@ export function CyclesTab({ cycles, loading, reload, onView }: { cycles: Cycle[]
             },
             {
               key: 'actions', header: '', align: 'right', render: (c) => (
-                <span className="row end" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                <span className="row end" style={{ gap: 6 }} onClick={(e) => e.stopPropagation()} data-tour="perf-cycle-actions">
                   {c.status === 'draft' ? <Button size="sm" variant="primary" loading={busy === `${c.id}-open`} onClick={() => act(c, 'open')} data-testid="cycle-open"><Icon name="play" size={14} /> Open</Button> : null}
                   {c.status === 'open' ? <Button size="sm" loading={busy === `${c.id}-close`} onClick={() => act(c, 'close')} data-testid="cycle-close"><Icon name="stop" size={14} /> Close</Button> : null}
                   {c.status !== 'closed' ? <Button size="sm" variant="ghost" aria-label="Edit cycle" onClick={() => setEditing(c)} data-testid="cycle-edit"><Icon name="edit" size={14} /></Button> : null}
@@ -211,7 +211,7 @@ export function CycleDetail({ cycleId, onBack, onChanged }: { cycleId: number; o
           <span className="muted">{fmtDate(c.period_start)} – {fmtDate(c.period_end)}{c.due_date ? ` · due ${fmtDate(c.due_date)}` : ''}</span>
         </div>
         {c.review_count ? (
-          <Button size="sm" onClick={() => downloadUrl(`/api/performance/cycles/${c.id}/export.csv`, `reviews-${c.name.replace(/[^a-zA-Z0-9_-]+/g, '-')}.csv`).then(() => toast.success('Export downloaded'), (err) => toast.error(err))} data-testid="cycle-detail-export">
+          <Button size="sm" onClick={() => downloadUrl(`/api/performance/cycles/${c.id}/export.csv`, `reviews-${c.name.replace(/[^a-zA-Z0-9_-]+/g, '-')}.csv`).then(() => toast.success('Export downloaded'), (err) => toast.error(err))} data-testid="cycle-detail-export" data-tour="perf-cycle-export">
             <Icon name="download" size={14} /> Export CSV
           </Button>
         ) : null}
@@ -219,13 +219,13 @@ export function CycleDetail({ cycleId, onBack, onChanged }: { cycleId: number; o
 
       {s ? (
         <>
-          <div className="stat-strip" data-testid="cycle-summary">
+          <div className="stat-strip" data-testid="cycle-summary" data-tour="perf-cycle-summary">
             <Stat label="Reviews" value={s.total} icon="users" hint={`${s.by_status.pending_self || 0} awaiting self-assessment`} />
             <Stat label="Awaiting manager" value={s.by_status.pending_manager || 0} icon="clock" color="var(--warning)" onClick={() => setStatus('pending_manager')} />
             <Stat label="Completion" value={`${s.completion_percent}%`} icon="check" color="var(--success)" hint={`${s.completed} of ${s.total} completed`} />
             <Stat label="Average rating" value={s.average_rating !== null ? `${fmtRating(s.average_rating)} / ${scale}` : '—'} icon="star" color="var(--accent)" />
           </div>
-          <div className="detail-grid">
+          <div className="detail-grid" data-tour="perf-cycle-charts">
             <Card title="Rating distribution">
               {s.completed ? (
                 <BarChart data={s.distribution.map((d, i) => ({ label: String(d.rating), value: d.count, color: CHART_COLORS[i % CHART_COLORS.length] }))} height={150} />
@@ -275,6 +275,7 @@ export function CycleDetail({ cycleId, onBack, onChanged }: { cycleId: number; o
 
       <Card
         title="Reviews"
+        tour="perf-cycle-reviews"
         padded={false}
         actions={(
           <Select value={status} onChange={(e) => setStatus(e.target.value as ReviewStatus | '')} aria-label="Status" data-testid="cycle-review-status">

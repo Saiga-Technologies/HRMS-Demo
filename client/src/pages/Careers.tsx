@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { fmtDate, fmtMoney, label } from '../lib/format';
-import { usePageTour, useTour } from '../lib/tour';
+import { usePageTour, useTour, type TourStep } from '../lib/tour';
 import { useTheme } from '../lib/theme';
 import { Icon } from '../components/Icons';
 import { Button, Card, Field, Input, Textarea, Select, FileInput, EmptyState, Spinner, SearchInput, useFetch, useToast } from '../components/ui';
@@ -14,12 +14,22 @@ interface Job {
 }
 interface Company { name: string; tagline?: string; logo_text?: string; currency: string }
 
-const TOUR = [
-  { element: '[data-tour="careers-search"]', title: 'Find a role', description: 'Search by title or skill and filter by team. Every role listed here is open right now.' },
-  { element: '[data-tour="careers-list"]', title: 'Open positions', description: 'Each card shows the team, location, experience and type of role. Click one for the full description.' },
-  { element: '[data-tour="careers-detail"]', title: 'About the role', description: 'What you will do, what we look for and the skills that matter most.' },
-  { element: '[data-tour="careers-apply"]', title: 'Apply in a minute', description: 'Add your details and attach your CV (PDF, DOCX or TXT). Our team reviews every application and you get a reference number straight away.' },
-  { element: '[data-tour="careers-theme"]', title: 'Light or dark', description: 'Switch the page theme any time.' },
+const TOUR: TourStep[] = [
+  { title: 'How it works', description: 'Applying takes a few minutes: 1) browse the open roles, 2) search or filter to find yours, 3) open a role to read what it involves, 4) apply with your details and CV, and 5) keep the reference number you get back.' },
+  { element: '[data-tour="careers-hero"]', title: 'Open roles', description: 'Every role on this page is open right now, and the count shows how many. Roles are added and removed as hiring needs change, so check back if nothing fits today.' },
+  { element: '[data-tour="careers-search"]', title: 'Search roles', description: 'Type a job title or a skill, such as "React" or "payroll", to narrow the list as you type.' },
+  { element: '[data-testid="careers-dept"]', title: 'Filter by team', description: 'Show only the roles in one team or department.' },
+  { element: '[data-tour="careers-list"]', title: 'The list of roles', description: 'One card per role. If nothing matches your search, clear it or try another keyword.' },
+  { element: '[data-testid="job-card"]', title: 'A role at a glance', description: 'The team, location, experience range and type of role, a short summary and the key skills. Click the card to read the full description and apply.' },
+  { element: '[data-tour="careers-back"]', title: 'Back to all roles', description: 'Return to the full list at any time to look at other roles.' },
+  { element: '[data-tour="careers-meta"]', title: 'Role basics', description: 'The team, location, experience, type of role, the salary range when one is published, and when the role was posted.' },
+  { element: '[data-tour="careers-detail"]', title: 'About the role', description: 'A summary, what you will do day to day, what we look for and the skills that matter most. Check these against your CV before you apply.' },
+  { element: '[data-tour="careers-apply"]', title: 'Apply for this role', description: 'Your first name and email are required; phone, notice period and a short note help us move faster. No account or password is needed.' },
+  { element: '[data-tour="careers-apply"] .file-input', title: 'Attach your CV', description: 'Drag your CV here or click to choose it: PDF, DOCX or TXT, up to 10 MB. A CV is required; the form tells you if it is missing.' },
+  { element: '[data-testid="apply-submit"]', title: 'Send it', description: 'Your application goes straight to our recruitment team, who review every one. You can apply once per role; a second application for the same role is refused.' },
+  { element: '[data-testid="apply-reference"]', title: 'Your reference', description: 'Keep this reference number and quote it if you contact us about your application.' },
+  { element: '[data-tour="careers-theme"]', title: 'Light or dark', description: 'Switch the page between light and dark at any time.' },
+  { title: 'What happens next', description: 'Our team reviews your application and replies by email. Meanwhile, you are welcome to apply for other roles that fit you.' },
 ];
 
 const exp = (j: Job) => (j.experience_min != null || j.experience_max != null ? `${j.experience_min ?? 0}${j.experience_max != null ? `–${j.experience_max}` : '+'} yrs` : null);
@@ -64,7 +74,7 @@ function JobList({ jobs, company }: { jobs: Job[]; company: Company }) {
   const shown = jobs.filter((j) => (!dept || j.department_name === dept) && (!q || `${j.title} ${j.summary || ''} ${(j.skills || []).join(' ')}`.toLowerCase().includes(q.toLowerCase())));
   return (
     <>
-      <section className="careers-hero">
+      <section className="careers-hero" data-tour="careers-hero">
         <h1>Join {company.name}</h1>
         <p className="muted">{company.tagline || 'Build your career with us.'} {jobs.length ? `${jobs.length} open ${jobs.length === 1 ? 'role' : 'roles'}.` : ''}</p>
       </section>
@@ -109,10 +119,10 @@ function JobDetail({ id, company }: { id: number; company: Company }) {
   const salary = j.salary_min || j.salary_max ? `${fmtMoney(j.salary_min ?? j.salary_max, company.currency)}${j.salary_max && j.salary_min ? ` – ${fmtMoney(j.salary_max, company.currency)}` : ''} a year` : null;
   return (
     <>
-      <Link to="/careers" className="careers-back"><Icon name="chevronLeft" size={14} /> All open roles</Link>
+      <Link to="/careers" className="careers-back" data-tour="careers-back"><Icon name="chevronLeft" size={14} /> All open roles</Link>
       <div className="careers-detail">
         <div className="stack" data-tour="careers-detail">
-          <div>
+          <div data-tour="careers-meta">
             <h1 className="page-title" data-testid="job-title">{j.title}</h1>
             <div className="careers-meta">
               {j.department_name ? <span><Icon name="users" size={13} /> {j.department_name}</span> : null}

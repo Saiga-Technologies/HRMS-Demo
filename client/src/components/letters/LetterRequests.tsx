@@ -63,10 +63,10 @@ export function LetterRequests({ letters, loading, onChanged }: { letters: Lette
                     <span className="muted">Requested {fmtDateTime(l.created_at)}{l.requested_by_name ? ` by ${l.requested_by_name}` : ''} · <button type="button" className="btn btn-link" onClick={() => setOpen(l.id)}>details</button></span>
                     {l.status === 'approved' && l.approved_by_name ? <span className="audit-trail">Approved by {l.approved_by_name}</span> : <span className="pending-with"><Icon name="clock" size={13} /> Pending with HR</span>}
                   </div>
-                  <div className="row" style={{ marginTop: 10 }}>
+                  <div className="row" style={{ marginTop: 10 }} data-tour="letters-request-note">
                     <Input placeholder="Note to employee (optional)" value={notes[l.id] || ''} onChange={(e) => setNotes({ ...notes, [l.id]: e.target.value })} style={{ flex: 1 }} data-testid="letter-review-note" />
                   </div>
-                  <div className="row end" style={{ marginTop: 8 }}>
+                  <div className="row end" style={{ marginTop: 8 }} data-tour="letters-request-actions">
                     <Button variant="danger" size="sm" loading={busy === `${l.id}-reject`} disabled={!!busy} onClick={() => act(l, 'reject')} data-testid="letter-reject">Reject</Button>
                     {l.status === 'requested' ? (
                       <>

@@ -57,7 +57,7 @@ export function TeamReviews({ cycles, onChanged }: { cycles: Cycle[]; onChanged:
         </Select>
         <SearchInput value={q} onChange={setQ} placeholder="Search name, code, department…" />
         {user?.employee_id ? <Pill active={mineOnly} onClick={() => setMineOnly((v) => !v)}>Assigned to me</Pill> : null}
-        <span className="count-chips" style={{ marginLeft: 'auto' }}>
+        <span className="count-chips" style={{ marginLeft: 'auto' }} data-tour="perf-team-chips">
           {(Object.keys(REVIEW_STATUS_LABEL) as ReviewStatus[]).map((s) => (
             <span key={s} className={`badge badge-neutral count-chip ${status === s ? 'active' : ''}`} role="button" onClick={() => setStatus(status === s ? '' : s)}>
               {REVIEW_STATUS_LABEL[s]} {byStatus[s] || 0}
@@ -83,7 +83,7 @@ export function TeamReviews({ cycles, onChanged }: { cycles: Cycle[]; onChanged:
               key: 'actions', header: '', align: 'right', render: (r) => {
                 const mode = editorModeFor({ ...r, is_own: false }, isHr);
                 return (
-                  <Button size="sm" variant={mode === 'manager' ? 'primary' : 'secondary'} onClick={(e) => { e.stopPropagation(); setOpen(r.id); }} data-testid="review-open">
+                  <Button size="sm" variant={mode === 'manager' ? 'primary' : 'secondary'} onClick={(e) => { e.stopPropagation(); setOpen(r.id); }} data-testid="review-open" data-tour="perf-team-open">
                     <Icon name={mode === 'manager' ? 'edit' : 'eye'} size={14} /> {mode === 'manager' ? 'Review' : 'View'}
                   </Button>
                 );

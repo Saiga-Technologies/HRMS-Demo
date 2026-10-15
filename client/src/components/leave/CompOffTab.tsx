@@ -148,7 +148,7 @@ export default function CompOffTab() {
               ) : <span className="muted">No {coCode} leave type is active. HR can add one under Leave types.</span>}
               <p className="help mt" style={{ marginTop: 10 }}>Approved credits are added to this balance for the year of the worked date; apply for leave with the {coCode} type to use them.</p>
             </Card>
-            <Card title="Summary">
+            <Card title="Summary" tour="compoff-summary">
               <div className="compoff-summary">
                 {['detected', 'pending', 'approved', 'rejected', 'expired'].map((s) => (
                   <div key={s} className="compoff-summary-item"><StatusBadge status={s} label={label(s)} /><strong className="num">{mine.filter((c) => c.status === s).length}</strong></div>
@@ -156,7 +156,7 @@ export default function CompOffTab() {
               </div>
             </Card>
           </div>
-          <Card padded={false} title="My comp-off credits" className="mb">
+          <Card padded={false} title="My comp-off credits" className="mb" tour="compoff-credits">
             <Table<CompOffCredit> rows={mine} columns={creditColumns(false)} empty="No comp-off credits yet." />
           </Card>
         </>
@@ -196,7 +196,7 @@ export default function CompOffTab() {
       ) : null}
 
       {isManager ? (
-        <Card padded={false} title={isHr ? 'All credits' : 'Team credits'} className="mb"
+        <Card padded={false} title={isHr ? 'All credits' : 'Team credits'} className="mb" tour="compoff-team"
           actions={
             <span className="row">
               {['', 'detected', 'pending', 'approved', 'rejected', 'expired'].map((s) => <Pill key={s || 'all'} active={teamStatus === s} onClick={() => setTeamStatus(s)}>{s ? label(s) : 'All'}</Pill>)}

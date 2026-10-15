@@ -21,12 +21,12 @@ export function MyLetters({ letters, loading, onRequest }: { letters: Letter[]; 
           empty={<EmptyState title="No letters yet" description="Request an experience, salary or address proof letter and download the PDF here once HR has generated it." action={onRequest ? <Button variant="primary" onClick={onRequest}>Request a letter</Button> : undefined} />}
           columns={[
             { key: 'title', header: 'Letter', render: (l) => <span data-testid="my-letter-row"><strong>{l.title}</strong><div className="muted mono">{letterRef(l)}</div></span> },
-            { key: 'status', header: 'Status', render: (l) => <LetterStatusBadge status={l.status} /> },
+            { key: 'status', header: 'Status', render: (l) => <span data-tour="letters-my-status"><LetterStatusBadge status={l.status} /></span> },
             { key: 'created_at', header: 'Requested', render: (l) => fmtDate(l.created_at) },
             { key: 'note', header: 'Note from HR', render: (l) => l.note ? <span className="muted">{l.note}</span> : <span className="muted">—</span> },
             {
               key: 'actions', header: '', align: 'right', render: (l) => l.status === 'generated' ? (
-                <Button size="sm" variant="primary" data-testid="my-letter-download" onClick={(e) => { e.stopPropagation(); downloadLetter(l).then(() => toast.success('Download started')).catch((err) => toast.error(err)); }}>
+                <Button size="sm" variant="primary" data-testid="my-letter-download" data-tour="letters-my-download" onClick={(e) => { e.stopPropagation(); downloadLetter(l).then(() => toast.success('Download started')).catch((err) => toast.error(err)); }}>
                   <Icon name="download" size={14} /> PDF
                 </Button>
               ) : null,

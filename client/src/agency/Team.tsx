@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDateTime } from '../lib/format';
 import { Avatar, Badge, Button, Card, Field, Input, Modal, PageHeader, SearchInput, Select, Stat, Switch, Table, useConfirm, useFetch, useToast } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -21,11 +21,17 @@ const ROLE_HINT: Record<string, string> = {
 };
 const ROLE_TONE: Record<string, 'success' | 'info' | 'warning' | 'neutral'> = { owner: 'success', admin: 'success', account_manager: 'info', payroll: 'warning', recruiter: 'neutral' };
 
-const TOUR = [
-  { element: '[data-tour="team-stats"]', title: 'Your agency team', description: 'How many people work in the agency and in which roles.' },
-  { element: '[data-tour="team-add"]', title: 'Add a team member', description: 'Owners and admins invite colleagues, choose their role and the client companies they work on. A temporary password is shown once.' },
-  { element: '[data-tour="team-filters"]', title: 'Search and filter', description: 'Find someone by name or email and filter by role.' },
-  { element: '[data-tour="team-table"]', title: 'Team and their companies', description: 'Each person with their role, the companies they cover (admins see all), last sign-in and whether the account is active. Owners and admins click a row to change it.' },
+const TOUR: TourStep[] = [
+  { title: 'Agency team', description: 'Who works at the agency and which client companies each person covers. Assignments decide what everyone sees: the portfolio, calendar, service desk and billing only show a person the companies they are assigned to. The flow: 1) add a colleague with a role, 2) assign their companies, 3) keep roles and access up to date.' },
+  { element: '[data-tour="team-stats"]', title: 'Team at a glance', description: 'Active members (and how many are inactive), account managers and payroll specialists, and the client companies the agency runs. Click a role tile to filter the list to that role.' },
+  { element: '[data-tour="team-add"]', title: 'Add a team member', description: 'Owners and admins add a colleague: name, email, role and the client companies they work on. A temporary password is shown once; they change it at first sign-in.' },
+  { element: '[data-tour="team-filters"]', title: 'Search and filter', description: 'Find someone by name or email, or filter by role.' },
+  { element: '[data-tour="team-table"]', title: 'Team and their companies', description: 'Each person with their role, the companies they cover, their last sign-in and whether the account is active.' },
+  { element: '[data-tour="team-table"] .badge', title: 'Roles', description: 'Owner and admin: every company, the team, billing and reassigning account managers. Account manager: their own companies, onboarding new clients and billing for them. Payroll specialist: runs payroll for the companies they are given. Recruiter: hiring work, acting as a manager inside their companies.' },
+  { element: '[data-tour="team-table"] .chip', title: 'Company assignments', description: 'Owners and admins always cover all companies. Everyone else sees only the companies listed here; a company\'s account manager is set in the portfolio drawer or when onboarding it.' },
+  { element: '[data-tour="team-table"] [data-testid^="team-edit-"]', title: 'Edit access', description: 'Change someone\'s role or companies, or deactivate them when they leave. A deactivated person can no longer sign in; their companies stay as they are.' },
+  { element: '[data-tour="team-readonly"]', title: 'Read-only for you', description: 'Only agency owners and admins can add or change team members.' },
+  { title: 'What to do next', description: 'Make sure every client company has an account manager and a payroll specialist assigned, so its payroll milestones, filings and requests always have an owner. New clients are added from Add a client company.' },
 ];
 
 export default function Team() {
@@ -88,7 +94,7 @@ export default function Team() {
           ]}
         />
       </Card>
-      {!canManage ? <p className="help">You have read-only access. Agency owners and admins manage the team.</p> : null}
+      {!canManage ? <p className="help" data-tour="team-readonly">You have read-only access. Agency owners and admins manage the team.</p> : null}
 
       {adding ? <MemberModal companies={companies.data || []} onClose={() => setAdding(false)} onSaved={(r) => { setAdding(false); team.reload(); if (r) setCreated(r); }} /> : null}
       {editing ? <MemberModal member={editing} companies={companies.data || []} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); team.reload(); }} /> : null}

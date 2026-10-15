@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate, fmtMoney, label } from '../lib/format';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, SearchInput, Select, Spinner, StatusBadge, Table, Tabs, Textarea, useConfirm, useFetch, useForm, useToast } from '../components/ui';
 
@@ -19,12 +19,22 @@ const num = (v: any): number | null => (v === '' || v === null || v === undefine
 const expRange = (j: JD) => (j.experience_min == null && j.experience_max == null ? null : j.experience_min != null && j.experience_max != null ? `${j.experience_min}–${j.experience_max} yrs` : j.experience_min != null ? `${j.experience_min}+ yrs` : `up to ${j.experience_max} yrs`);
 const salaryRange = (j: JD, cur: string) => (j.salary_min == null && j.salary_max == null ? null : j.salary_min != null && j.salary_max != null ? `${fmtMoney(j.salary_min, cur)} – ${fmtMoney(j.salary_max, cur)}` : j.salary_min != null ? `from ${fmtMoney(j.salary_min, cur)}` : `up to ${fmtMoney(j.salary_max, cur)}`);
 
-const TOUR = [
-  { element: '[data-tour="jobs-tabs"]', title: 'Job descriptions and vacancies', description: 'Job descriptions are reusable, versioned templates for a role. Vacancies are concrete openings — raising one is the first stage of the Employee journey.' },
-  { element: '[data-tour="jd-add"]', title: 'Write a job description', description: 'HR can draft a JD with summary, responsibilities, requirements, skills, experience and salary range. Publish it when it is ready to be attached to vacancies.' },
-  { element: '[data-tour="jd-filters"]', title: 'Filter', description: 'Search by title or summary, and narrow by status or department.' },
-  { element: '[data-tour="jd-grid"]', title: 'Manage descriptions', description: 'View a nicely formatted (printable) version, edit, duplicate, publish, archive or delete. Content edits bump the version number automatically.' },
-  { element: '[data-tour="vac-table"]', title: 'Vacancies', description: 'Track openings, budget, hires made and status for every vacancy. New joiners can be linked to the vacancy they were hired for.' },
+const TOUR: TourStep[] = [
+  { title: 'Jobs', description: 'Where hiring starts. The flow: 1) write a job description for the role, 2) publish it, 3) raise a vacancy that uses it, 4) open vacancies appear on the careers page and in Recruitment, where CVs are scored against the description.' },
+  { element: '[data-tour="jobs-tabs"]', title: 'Two views', description: 'Job descriptions are reusable, versioned write-ups of a role. Vacancies are concrete openings with a headcount and budget. HR edits both; managers can read them.' },
+  { element: '[data-tour="jd-add"]', title: 'Write a job description', tab: 'descriptions', description: 'Opens the editor: title, position and department, summary, responsibilities, requirements and skills (one per line), employment type, experience and salary range, location and status. Save it as a draft until it is ready.' },
+  { element: '[data-tour="jd-filters"]', title: 'Find a description', description: 'Search by title, summary or position, and narrow by status (draft, published, archived) or department. The counter shows how many match.' },
+  { element: '[data-tour="jd-grid"]', title: 'Description cards', description: 'One card per job description with its position, department, employment type, experience, salary range and location chips, and the summary.' },
+  { element: '[data-tour="jd-status"]', title: 'Draft, published, archived', description: 'Only published descriptions can be attached to a vacancy. Archive a description that is no longer used; restoring brings it back as a draft.' },
+  { element: '[data-tour="jd-meta"]', title: 'Version and usage', description: 'The version goes up automatically whenever the content changes (status changes do not), so you can tell which wording a vacancy used. Also shows how many open vacancies use it and how many skills it lists — skills drive the CV match score in Recruitment.' },
+  { element: '[data-tour="jd-actions"]', title: 'Card actions', description: 'View opens a clean, printable version. HR can Edit, Duplicate (creates a draft copy, version 1), Publish a draft, Archive a published one, or delete it.' },
+  { element: '[data-tour="vac-note"]', title: 'Next: vacancies', tab: 'vacancies', description: 'A vacancy is the first step of the Employee journey: raising one starts requisition, budget, publishing, sourcing and interviews.' },
+  { element: '[data-tour="vac-add"]', title: 'Raise a vacancy', description: 'Opens the vacancy form. Pick a published job description and it pre-fills the title, position and department; then set the number of openings, the annual budget, status and opening date.' },
+  { element: '[data-tour="vac-filters"]', title: 'Find a vacancy', description: 'Search by title, department or position and filter by status. The summary counts open vacancies and their total openings.' },
+  { element: '[data-tour="vac-table"]', title: 'Vacancy list', description: 'Each vacancy with its position, department, linked job description, openings, budget and dates. HR clicks a row to edit it or delete it.' },
+  { element: '[data-tour="vac-hires"]', title: 'Openings and hires', description: 'Hires count up as candidates are hired in Recruitment. When every opening is filled the vacancy closes as Filled.' },
+  { element: '[data-tour="vac-status"]', title: 'Vacancy status', description: 'Draft, Open, On hold, Closed or Filled. Only Open vacancies are listed on the public careers page and take applications; closing or filling one stamps the closed date.' },
+  { title: 'What to do next', description: 'With a vacancy open, go to Recruitment to upload CVs (or receive them from the careers page), score them against this description and move candidates through to hire. Each hire is linked back to the vacancy and starts their Employee journey.' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -55,7 +65,7 @@ export default function Jobs() {
         actions={isHr ? (
           tab === 'descriptions'
             ? <Button variant="primary" data-testid="jd-add" data-tour="jd-add" onClick={() => setEditJd({})}>+ New job description</Button>
-            : <Button variant="primary" data-testid="vacancy-add" data-tour="jd-add" onClick={() => setEditVac({})}>+ New vacancy</Button>
+            : <Button variant="primary" data-testid="vacancy-add" data-tour="vac-add" onClick={() => setEditVac({})}>+ New vacancy</Button>
         ) : undefined}
       />
       <Tabs tour="jobs-tabs" value={tab} onChange={setTab} tabs={[{ key: 'descriptions', label: 'Job descriptions', count: jds.data?.length }, { key: 'vacancies', label: 'Vacancies', count: vacancies.data?.length }]} />
@@ -145,7 +155,7 @@ function DescriptionsTab({ jds, loading, departments, isHr, reload, onEdit, onVi
                     <div className="jd-title">{j.title}</div>
                     <div className="muted">{[j.position_title, j.department_name].filter(Boolean).join(' · ') || 'No position / department'}</div>
                   </div>
-                  <StatusBadge status={j.status} />
+                  <span data-tour="jd-status"><StatusBadge status={j.status} /></span>
                 </div>
                 <div className="chip-list">
                   <span className="chip">{label(j.employment_type)}</span>
@@ -155,8 +165,8 @@ function DescriptionsTab({ jds, loading, departments, isHr, reload, onEdit, onVi
                 </div>
                 {j.summary ? <p className="jd-summary">{j.summary}</p> : <p className="jd-summary muted">No summary.</p>}
                 <div className="row between jd-foot">
-                  <span className="muted">v{j.version} · {j.open_vacancies} open vacanc{j.open_vacancies === 1 ? 'y' : 'ies'} · {j.skills.length} skill{j.skills.length === 1 ? '' : 's'}</span>
-                  <div className="row" style={{ gap: 4 }}>
+                  <span className="muted" data-tour="jd-meta">v{j.version} · {j.open_vacancies} open vacanc{j.open_vacancies === 1 ? 'y' : 'ies'} · {j.skills.length} skill{j.skills.length === 1 ? '' : 's'}</span>
+                  <div className="row" style={{ gap: 4 }} data-tour="jd-actions">
                     <Button size="sm" variant="ghost" onClick={() => onView(j)}>View</Button>
                     {isHr ? (
                       <>
@@ -353,7 +363,7 @@ function VacanciesTab({ vacancies, loading, isHr, onEdit }: { vacancies: Vacancy
       <div className="callout" data-tour="vac-note">
         <strong>A vacancy is the first step of the Employee journey.</strong> Raising one kicks off requisition approval, budgeting, the job description, publishing, sourcing and interviews — the stages you configure under <em>Journey → Stage templates</em>. When someone is hired, link their employee record to the vacancy so their journey starts from here.
       </div>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="vac-filters">
         <SearchInput value={q} onChange={setQ} placeholder="Search vacancies…" />
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
           <option value="">All statuses</option>
@@ -373,9 +383,9 @@ function VacanciesTab({ vacancies, loading, isHr, onEdit }: { vacancies: Vacancy
             { key: 'department_name', header: 'Department', render: (v) => v.department_name || '—' },
             { key: 'jd_title', header: 'Job description', render: (v) => v.jd_title || <span className="muted">—</span> },
             { key: 'openings', header: 'Openings', align: 'right' },
-            { key: 'hires', header: 'Hires', align: 'right', render: (v) => <span className={v.hires >= v.openings && v.openings > 0 ? 'muted' : ''}>{v.hires}</span> },
+            { key: 'hires', header: 'Hires', align: 'right', render: (v) => <span data-tour="vac-hires" className={v.hires >= v.openings && v.openings > 0 ? 'muted' : ''}>{v.hires}</span> },
             { key: 'budget_annual', header: 'Budget / yr', align: 'right', render: (v) => fmtMoney(v.budget_annual, currency) },
-            { key: 'status', header: 'Status', render: (v) => <StatusBadge status={v.status} /> },
+            { key: 'status', header: 'Status', render: (v) => <span data-tour="vac-status"><StatusBadge status={v.status} /></span> },
             { key: 'opened_at', header: 'Opened', render: (v) => fmtDate(v.opened_at) },
             { key: 'closed_at', header: 'Closed', render: (v) => fmtDate(v.closed_at) },
           ]}

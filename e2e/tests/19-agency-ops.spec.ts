@@ -25,7 +25,7 @@ test.describe('agency operations: calendar, service desk and company services', 
     await expect(page.getByTestId('cal-grid')).toBeVisible();
     await expect(page.getByTestId('cal-today-cell')).toBeVisible();
     await expect(page.locator('[data-testid="cal-event"][data-company="acme"][data-kind="payroll"]').first()).toBeVisible();
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
 
     // Filter to Acme payroll in the agenda view.
     await page.getByTestId('cal-view-agenda').click();
@@ -48,7 +48,7 @@ test.describe('agency operations: calendar, service desk and company services', 
     await page.locator('[data-nav="/agency/requests"]').click();
     await expect(page.getByRole('heading', { name: 'Service desk' })).toBeVisible();
     await expect(page.getByTestId('desk-row').first()).toBeVisible();
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
 
     // --- Inside Acme as the agency: file a return and lock attendance ---------------------------
     await page.goto('/c/acme/services?tab=compliance');
@@ -74,7 +74,7 @@ test.describe('agency operations: calendar, service desk and company services', 
     }
     await expect(page.getByTestId('ms-attendance_lock')).toHaveAttribute('data-status', 'done');
     await expect(page.getByTestId('cp-attendance')).toHaveCount(0);
-    await runTour(page);
+    await runTour(page, { minSteps: 18 });
 
     await page.goto('/agency');
     await logout(page);
@@ -88,7 +88,7 @@ test.describe('agency operations: calendar, service desk and company services', 
     await expect(page.getByTestId('ms-payment')).toBeVisible();
     await expect(page.getByTestId('ms-attendance_lock')).toHaveAttribute('data-status', 'done');
     await expect(page.getByTestId('cp-attendance')).toHaveCount(0);
-    await runTour(page);
+    await runTour(page, { minSteps: 18 });
 
     await page.getByTestId('tab-compliance').click();
     await expect(page.getByTestId('svc-compliance-readonly')).toBeVisible();

@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qs } from '../lib/api';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { PageHeader, Tabs, Button, Modal, Field, Input, Spinner, useFetch, useToast } from '../components/ui';
 import { Icon } from '../components/Icons';
 import Overview, { type OverviewData } from './billing/Overview';
@@ -11,19 +11,31 @@ import Pricing from './billing/Pricing';
 import { currentPeriod, periodLabel, type InvoiceRow, type BillingProfile } from './billing/shared';
 import './billing.css';
 
+const BILLING_TOUR: TourStep[] = [
+  { title: 'Agency billing', description: 'How the agency gets paid for running each client\'s HR and payroll. The monthly loop: 1) pricing per client, 2) generate draft invoices for the month, 3) review and issue them, 4) record payments, 5) chase what is overdue on the aging view.' },
+  { element: '[data-tour="bill-header"]', title: 'Billed from the right entity', description: 'Each client is invoiced by the agency entity for its market: India (GSTIN, CGST + SGST within Kerala, IGST otherwise), UAE TRN (which also bills Qatar as a zero-rated export), KSA VAT and US EIN. Owners, admins and account managers can generate, issue and record payments; other roles see billing read-only.' },
+  { element: '[data-tour="bill-tabs"]', title: 'Overview, invoices, pricing', description: 'The red counters show overdue invoices on Overview and drafts still waiting to be issued on Invoices.' },
+  { element: '[data-tour="bill-pricing"]', title: '1. Pricing per client', description: 'What every invoice is built from: fee per employee per month (PEPM), fee per payroll run, a minimum monthly charge, a one-off setup fee, payment terms and the tax treatment. These come from the onboarding wizard.', tab: 'pricing' },
+  { element: '[data-tour="bill-pricing"] [data-testid^="pricing-edit-"]', title: 'Change a client\'s pricing', description: 'Opens the pricing form: fees, payment terms, billing contact, the client\'s tax ID and (India) the place of supply that decides CGST + SGST or IGST. Changes apply to drafts generated from now on; issued invoices are never restated.' },
+  { element: '[data-tour="bill-generate"]', title: '2. Generate drafts', description: 'Pick a service month and the agency creates one draft per active client that has no invoice for it yet: employees active in the month × PEPM, each processed payroll run, a top-up to the minimum charge and any unbilled setup fee. You land on the Invoices tab filtered to the new drafts.' },
+  { element: '[data-tour="bill-drafts-callout"]', title: 'Drafts to review', description: 'Drafts have no invoice number yet. Use Show drafts to list only them.', tab: 'invoices' },
+  { element: '[data-tour="bill-filters"]', title: 'Filter the register', description: 'By status (drafts, awaiting payment, overdue, paid, void), company, market and service month.' },
+  { element: '[data-tour="bill-invoices"]', title: '3. Review and issue', description: 'The invoice register. Click a draft to open it: check the lines, add an ad-hoc line (for example a full and final settlement) and press Issue invoice. Issuing gives it the next consecutive number for that entity and financial year and sets the due date from the payment terms; the client then sees it, with a PDF, under Agency services, Invoices.' },
+  { element: '[data-tour="bill-invoices"] [data-testid^="invoice-row-"]', title: 'Status of each invoice', description: 'Draft, Awaiting payment, Part paid, Overdue (with days late, once past the due date), Paid or Void.' },
+  { element: '[data-tour="bill-invoices"]', title: '4. Record payments', description: 'Open an issued invoice and choose Record payment: amount, date received, method and the bank reference. Part payments reduce the balance; the invoice turns Paid when the balance reaches zero. An issued invoice with no payments can be voided with a reason; its number is never reused.' },
+  { element: '[data-tour="bill-callout"]', title: 'Clients not yet invoiced', description: 'Shown when some clients have no invoice for this month yet; Generate drafts here does the same as the header button.', tab: 'overview' },
+  { element: '[data-tour="bill-stats"]', title: 'Totals per currency', description: 'Outstanding, overdue, invoiced this month and collected this month, kept separate per currency, never added together. Click Outstanding or Overdue to open the invoices behind them.' },
+  { element: '[data-tour="bill-aging"]', title: '5. Receivables aging', description: 'Unpaid balances by invoice age: 0–30, 31–60, 61–90 and over 90 days. Switch currency with the pills when you bill in more than one. Click a bar to list the outstanding invoices.' },
+  { element: '[data-tour="bill-top-overdue"]', title: 'Who to chase', description: 'Clients with overdue invoices, with the amount, how many invoices and how many days late. Click one to see its overdue invoices. Overdue balances also show on the company\'s portfolio card.' },
+  { title: 'What to do next', description: 'At month end, generate drafts once payroll has run, review and issue them, and record payments as they arrive. Check the aging and the most overdue clients weekly and raise them with the account manager.' },
+];
+
 /**
  * Agency billing: what clients owe (overview + aging), the invoice register (generate drafts →
  * issue → payments / void, PDF) and per-client pricing. Money arrives as integer minor units.
  */
 export default function Billing() {
-  usePageTour('Billing', [
-    { element: '[data-tour="bill-header"]', title: 'Agency billing', description: 'Invoices for every client you manage, issued from the right entity (India GST, UAE / KSA VAT, US) with statutory numbering per entity and financial year.' },
-    { element: '[data-tour="bill-tabs"]', title: 'Overview, invoices, pricing', description: 'The red counters show overdue invoices and drafts that still need to be issued.' },
-    { element: '[data-tour="bill-stats"]', title: 'Totals per currency', description: 'Outstanding, overdue and invoiced this month, kept separate per currency. Click a card to see the invoices behind it.' },
-    { element: '[data-tour="bill-aging"]', title: 'Receivables aging', description: 'Unpaid balances by age: 0–30, 31–60, 61–90 and 90+ days.' },
-    { element: '[data-tour="bill-top-overdue"]', title: 'Who to chase', description: 'Clients with overdue invoices, longest late first. Click one to open its invoices.' },
-    { element: '[data-tour="bill-generate"]', title: 'Generate drafts', description: 'Creates one draft per client for a service month from its pricing: PEPM × employees active in the month, a fee per processed payroll run, a minimum-charge top-up and any setup fee. Drafts get a number only when issued.' },
-  ]);
+  usePageTour('Billing', BILLING_TOUR);
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') || 'overview';
@@ -59,7 +71,7 @@ export default function Billing() {
       {tab === 'invoices' ? (
         <>
           {overview.data?.counts.drafts ? (
-            <div className="bill-callout" data-testid="drafts-callout">
+            <div className="bill-callout" data-testid="drafts-callout" data-tour="bill-drafts-callout">
               <Icon name="file" size={16} />
               <span><strong>{overview.data.counts.drafts}</strong> draft{overview.data.counts.drafts === 1 ? '' : 's'} awaiting review and issue.</span>
               {filters.status !== 'draft' ? <Button size="sm" onClick={() => setFiltersState({ ...filters, status: 'draft' })}>Show drafts</Button> : null}

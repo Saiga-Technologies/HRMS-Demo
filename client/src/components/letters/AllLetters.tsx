@@ -88,7 +88,7 @@ export function AllLetters({ letters, loading, templates, onChanged, onIssue }: 
             { key: 'created_at', header: 'Created', render: (l) => fmtDate(l.created_at) },
             {
               key: 'actions', header: '', align: 'right', render: (l) => (
-                <div className="row end" style={{ gap: 4, flexWrap: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                <div className="row end" style={{ gap: 4, flexWrap: 'nowrap' }} onClick={(e) => e.stopPropagation()} data-tour="letters-row-actions">
                   {l.status === 'generated' ? (
                     <Button size="sm" variant="ghost" title="Download PDF" aria-label="Download PDF" data-testid="letter-download" onClick={() => downloadLetter(l).catch((err) => toast.error(err))}><Icon name="download" size={15} /></Button>
                   ) : null}

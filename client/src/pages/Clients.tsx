@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate, fmtMoney } from '../lib/format';
 import { Button, Card, EmptyState, PageHeader, SearchInput, Select, Stat, Table, Tabs, useFetch } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -15,13 +15,29 @@ import { CLIENT_STATUSES, CLIENT_STATUS_LABEL, PLACEMENT_STATUSES, PLACEMENT_STA
 
 type Tab = 'clients' | 'placements';
 
-const TOUR = [
-  { element: '[data-tour="clients-stats"]', title: 'Agency at a glance', description: 'Clients by status, active placements, and the monthly billing and margin from active placements. Hourly rates count as 160 hours a month, daily rates as 22 days.' },
-  { element: '[data-tour="clients-add"]', title: 'Add clients and placements', description: 'HR registers new clients and places employees or recruitment candidates with them at a bill rate and a pay rate.' },
-  { element: '[data-tour="clients-tabs"]', title: 'Clients and placements', description: 'Switch between the client list and every placement. The red badge counts proposed placements still waiting to be activated.' },
-  { element: '[data-tour="clients-filters"]', title: 'Search and filter', description: 'Search by name, code, industry or contact, and narrow the list by status.' },
-  { element: '[data-tour="clients-table"]', title: 'Client list', description: 'Each client shows its active placements and the monthly billing and margin they generate. Click a client to see its contact details and placements.' },
-  { element: '[data-tour="clients-ending"]', title: 'Ending soon', description: 'Active placements whose end date falls in the next 30 days, so you can extend them or line up the next role.' },
+const TOUR: TourStep[] = [
+  { title: 'Clients and placements', description: 'This is where the agency side of the business lives: the companies you supply people to, who is placed with them, and what each placement earns. The flow: 1) check the portfolio numbers, 2) find or add a client, 3) place an employee or candidate with them, 4) activate the placement, 5) complete or end it, and watch the margins throughout.' },
+  { element: '[data-tour="clients-stats"]', title: 'Portfolio at a glance', description: 'The headline numbers for the whole agency, recalculated every time a placement changes. Click a card to jump to the matching list.' },
+  { element: '[data-tour="clients-stat-active"]', title: 'Active clients', description: 'Clients you currently work with. The line underneath counts prospects (not signed yet) and inactive clients. Click to filter the list to active clients.' },
+  { element: '[data-tour="clients-stat-placements"]', title: 'Active placements', description: 'People currently working at a client, plus how many proposed placements are still waiting to start. Click to open the active placements.' },
+  { element: '[data-tour="clients-stat-margin"]', title: 'Billing and margin', description: 'Monthly billing is what clients pay for active placements; margin is billing minus what you pay the people. Hourly rates count as 160 hours a month and daily rates as 22 days, so every placement compares on a monthly basis.' },
+  { element: '[data-tour="clients-stat-ending"]', title: 'Ending soon', description: 'Active placements whose end date is in the next 30 days. Act early: extend the contract or line up the next role before the person rolls off.' },
+  { element: '[data-testid="client-add"]', title: 'Add a client', description: 'Step one for a new account. Opens a form for the company name, industry, contact person, billing currency and payment terms. The client gets a code (CL-0001 style) and its detail opens straight away so you can place someone.' },
+  { element: '[data-tour="clients-tabs"]', title: 'Clients and placements', description: 'Two views of the same data: the client list, and every placement across all clients. The red badge on Placements counts proposed placements still waiting to be activated.' },
+  { element: '[data-tour="clients-filters"]', title: 'Find a client', description: 'Search by name, code, industry or contact, and narrow the list by status: active, prospect or inactive.', tab: 'clients' },
+  { element: '[data-tour="clients-table"]', title: 'Client list', description: 'Each row shows the contact, active placements out of the total, monthly billing and margin from active placements, billing currency and payment terms, and the client status.' },
+  { element: '[data-tour="clients-table"] tbody tr:first-child', title: 'Open a client', description: 'Click any client to open its detail: contact details, its own billing, margin and placement-fee totals, and every placement with it. HR can edit or delete the client and add a placement from there, with the client already filled in.' },
+  { element: '[data-tour="clients-ending"]', title: 'Placements ending in 30 days', description: 'The same list as the "Ending in 30 days" card, with days left and the margin at stake. Click a row to open that client.' },
+  { element: '[data-testid="placement-add"]', title: 'Add a placement', description: 'Opens the placement form: pick the client, the role, and either an existing employee or a candidate from Recruitment. Set the dates, rate unit, bill rate (what the client pays) and pay rate (what the person gets); the margin is previewed as you type. New placements start as Proposed.' },
+  { element: '[data-tour="placements-filters"]', title: 'Next, placements', description: 'Every placement across all clients. Search by person, role or client, and filter by status or client. The status list shows how many placements are in each state.', tab: 'placements' },
+  { element: '[data-tour="placements-table"]', title: 'Placement list', description: 'Who is placed where, in which role, for which dates, at what bill and pay rate, plus any one-off placement fee. Active placements are listed first, then proposed ones.' },
+  { element: '[data-tour="placements-table"] [data-testid="placement-status"]', title: 'Placement status', description: 'Proposed (agreed but not started), Active (working and billing), Completed (finished as planned) or Terminated (ended early). Only active placements count towards billing and margin.' },
+  { element: '[data-tour="placements-table"] [data-testid="placement-active"]', title: 'Activate', description: 'When the person starts at the client, activate the placement. From that moment it counts in the client\'s and the agency\'s monthly billing and margin.' },
+  { element: '[data-tour="placements-table"] [data-testid="placement-completed"]', title: 'Complete or terminate', description: 'Complete a placement that ran its course, or Terminate one that ended early. You are asked to confirm, and if no end date was set it is set to today. Both are final and drop the placement out of the billing totals.' },
+  { element: '[data-tour="placements-table"] [data-tour="placement-margin"]', title: 'Margin per placement', description: 'Monthly margin and its percentage of billing. Green is healthy, amber means under 15%, red means you pay the person more than the client pays you.' },
+  { element: '[data-tour="placements-table"] [data-testid="placement-edit"]', title: 'Edit or delete', description: 'Change rates, dates or the role with the pencil (for example when a contract is extended). Delete removes a placement entered by mistake, permanently.' },
+  { element: '[data-tour="clients-readonly"]', title: 'Read-only access', description: 'Managers can see clients, placements and margins; HR adds clients, places people and changes their status.' },
+  { title: 'What to do next', description: 'The loop: add a client, place someone, activate when they start, and complete or terminate when they finish, keeping an eye on margins and the ending-soon list. Candidates you place come from Recruitment, and placed employees stay in the Employees directory.' },
 ];
 
 function useDebounced<T>(value: T, ms = 250): T {
@@ -76,15 +92,15 @@ export default function Clients() {
       />
 
       <div className="stat-strip" data-tour="clients-stats">
-        <Stat label="Active clients" value={s ? s.clients_by_status.active : '…'} icon="building" color="var(--brand)"
+        <Stat tour="clients-stat-active" label="Active clients" value={s ? s.clients_by_status.active : '…'} icon="building" color="var(--brand)"
           hint={s ? `${s.clients_by_status.prospect} prospect · ${s.clients_by_status.inactive} inactive` : undefined}
           onClick={() => { setParam('tab', null); setClientStatus('active'); }} />
-        <Stat label="Active placements" value={s ? s.active_placements : '…'} icon="users" color="var(--info)"
+        <Stat tour="clients-stat-placements" label="Active placements" value={s ? s.active_placements : '…'} icon="users" color="var(--info)"
           hint={s ? `${proposed} proposed` : undefined}
           onClick={() => { setParam('tab', 'placements'); setPlacementStatus('active'); }} />
         <Stat label="Monthly billing" value={s ? fmtMoney(s.monthly_billing, cur) : '…'} icon="banknote" color="var(--accent)" />
-        <Stat label="Monthly margin" value={s ? fmtMoney(s.monthly_margin, cur) : '…'} icon="trendingUp" color="var(--success)" hint={s ? `${s.margin_pct}% of billing` : undefined} />
-        <Stat label="Ending in 30 days" value={s ? s.ending_soon.length : '…'} icon="calendar" color="var(--warning)"
+        <Stat tour="clients-stat-margin" label="Monthly margin" value={s ? fmtMoney(s.monthly_margin, cur) : '…'} icon="trendingUp" color="var(--success)" hint={s ? `${s.margin_pct}% of billing` : undefined} />
+        <Stat tour="clients-stat-ending" label="Ending in 30 days" value={s ? s.ending_soon.length : '…'} icon="calendar" color="var(--warning)"
           onClick={() => { setParam('tab', 'placements'); setPlacementStatus('active'); }} />
       </div>
 
@@ -168,7 +184,7 @@ export default function Clients() {
               empty={<EmptyState title={pq || placementStatus || placementClient ? 'No placements match' : 'No placements yet'} description={isHr ? 'Use "Add placement" to place an employee or candidate with a client.' : undefined} />}
             />
           </Card>
-          {!isHr ? <p className="help">You have read-only access. HR manages clients, placements and their rates.</p> : null}
+          {!isHr ? <p className="help" data-tour="clients-readonly">You have read-only access. HR manages clients, placements and their rates.</p> : null}
         </>
       )}
 

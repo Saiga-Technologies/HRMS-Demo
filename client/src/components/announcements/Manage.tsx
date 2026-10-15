@@ -42,7 +42,7 @@ export function Manage({ rows, loading, error, onEdit, onReaders, onChanged }: {
 
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="announcements-states">
         <Pill active={!state} onClick={() => setState('')}>All ({rows.length})</Pill>
         <Pill active={state === 'live'} onClick={() => setState('live')}>Live ({countOf('live')})</Pill>
         <Pill active={state === 'scheduled'} onClick={() => setState('scheduled')}>Scheduled ({countOf('scheduled')})</Pill>
@@ -67,7 +67,7 @@ export function Manage({ rows, loading, error, onEdit, onReaders, onChanged }: {
               ),
             },
             { key: 'audience_label', header: 'Audience' },
-            { key: 'state', header: 'State', render: (a) => <StateChip state={a.state} /> },
+            { key: 'state', header: 'State', render: (a) => <span data-tour="announcements-state-chip"><StateChip state={a.state} /></span> },
             { key: 'publish_at', header: 'Published', render: (a) => fmtDateTime(postedAt(a)) },
             { key: 'expires_at', header: 'Expires', render: (a) => (a.expires_at ? fmtDate(a.expires_at) : <span className="muted">Never</span>) },
             {

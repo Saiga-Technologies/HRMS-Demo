@@ -16,7 +16,7 @@ test.describe('shift roster', () => {
     await login(page, USERS.hr);
     await page.goto('/roster');
     await expect(page.getByTestId('roster-grid')).toBeVisible();
-    await runTour(page);
+    await runTour(page, { minSteps: 10 });
 
     // Week navigation keeps the week in the URL.
     const label = await page.getByTestId('roster-week-label').textContent();

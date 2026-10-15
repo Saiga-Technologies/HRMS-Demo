@@ -19,7 +19,7 @@ test.describe('agency portfolio', () => {
     await agencyLogin(page, OWNER);
     await expect(page.locator('.page-title')).toContainText('Lakshmi');
     await expect(page.getByTestId('pf-scope')).toContainText('across India, the GCC and the US');
-    await runTour(page);
+    await runTour(page, { minSteps: 18 });
 
     const acme = page.getByTestId('company-card-acme');
     await expect(acme).toBeVisible();
@@ -66,7 +66,7 @@ test.describe('agency portfolio', () => {
     await agencyLogin(page, OWNER);
     await page.getByTestId('pf-add-company').click();
     await expect(page).toHaveURL(/\/agency\/companies\/new/);
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
 
     // Step 1: company
     await page.getByTestId('nc-next').click();
@@ -140,7 +140,7 @@ test.describe('agency portfolio', () => {
   test('team page lists staff and the owner adds a member', async ({ page }) => {
     await agencyLogin(page, OWNER);
     await page.goto('/agency/team');
-    await runTour(page);
+    await runTour(page, { minSteps: 8 });
     const names = page.getByTestId('team-row-name');
     await expect(names.filter({ hasText: 'Daniel Brooks' })).toBeVisible();
     await expect(names.filter({ hasText: 'Gopika Varma' })).toBeVisible();

@@ -80,8 +80,10 @@ export function Feed({ rows, loading, error, openId, onOpenChange, onChanged }: 
   return (
     <>
       <div className="toolbar" data-tour="announcements-toolbar">
-        <Pill active={filter === 'all'} onClick={() => setFilter('all')}>All ({rows.length})</Pill>
-        <Pill active={filter === 'unread'} onClick={() => setFilter('unread')}>Unread ({unread})</Pill>
+        <span className="row" style={{ gap: 8 }} data-tour="announcements-filter">
+          <Pill active={filter === 'all'} onClick={() => setFilter('all')}>All ({rows.length})</Pill>
+          <Pill active={filter === 'unread'} onClick={() => setFilter('unread')}>Unread ({unread})</Pill>
+        </span>
         <Button size="sm" style={{ marginLeft: 'auto' }} onClick={markAll} loading={busy} disabled={!unread} data-testid="announcements-read-all">
           <Icon name="check" size={15} /> Mark all read
         </Button>

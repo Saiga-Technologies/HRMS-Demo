@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate, fmtDateTime, fullName, label } from '../lib/format';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, PageHeader, SearchInput, Select, Spinner, StatusBadge, Table, Tabs, Textarea, useConfirm, useFetch, useForm, useToast } from '../components/ui';
 
@@ -22,14 +22,24 @@ interface OverviewRow { id: number; employee_code: string; first_name: string; l
 const OWNER_ROLES = ['hr', 'manager', 'employee', 'finance', 'it', 'admin', 'leadership'];
 const DEFAULT_COLOR = '#2563eb';
 
-const TOUR = [
-  { element: '[data-tour="journey-tabs"]', title: 'Employee journey', description: 'Every employee walks the same configurable path: from the vacancy that was raised for them, through hiring and onboarding, to probation and confirmation.' },
-  { element: '[data-tour="journey-overview"]', title: 'Everyone at a glance', description: 'See which stage each employee is on and how far along they are. Click a row to open their journey.' },
-  { element: '[data-tour="journey-header"]', title: 'Progress', description: 'The header shows the person, the vacancy they were hired against and overall completion.' },
-  { element: '[data-tour="journey-stepper"]', title: 'The path', description: 'A compact stepper, coloured by stage. Click any step to jump to it below.' },
-  { element: '[data-tour="journey-timeline"]', title: 'Stage details', description: 'Each stage has an owner, dates, notes and a checklist. Employees can tick their own checklist items and add notes.' },
-  { element: '[data-tour="journey-actions"]', title: 'Run the journey', description: 'HR starts, completes, skips or resets stages, adds custom stages, reorders them, or re-applies the templates after changing them.' },
-  { element: '[data-tour="journey-templates"]', title: 'Stage templates', description: 'Define the 10–15 stages every new employee gets automatically. Reorder them, set an owner role and an SLA in days.' },
+const TOUR: TourStep[] = [
+  { title: 'Employee journey', description: 'Every employee follows the same path, from the vacancy raised for them through hiring, onboarding and probation to confirmation. The flow: 1) HR defines the stage templates, 2) each new employee gets those stages automatically, 3) owners work through each stage and its checklist, 4) HR tracks everyone’s progress in the Overview.' },
+  { element: '[data-tour="journey-tabs"]', title: 'Views', description: 'HR gets the Overview of everyone, their own journey and the Stage templates. Employees and managers see My journey; a manager opening a team member’s journey sees it here too.' },
+  { element: '[data-tour="journey-overview-filters"]', title: 'Find a journey', tab: 'overview', description: 'Search by employee, department or the stage they are on. Tick “Only journeys in progress” to hide finished ones. The counter shows how many are in flight.' },
+  { element: '[data-tour="journey-overview"]', title: 'Everyone at a glance', description: 'Every active employee, newest joiners first, with their department, position and status. Click a row to open that person’s journey (the name link opens their profile instead).' },
+  { element: '[data-tour="journey-current"]', title: 'Current stage', description: 'The stage in progress, or the next pending one. “All done” means every stage is completed or skipped.' },
+  { element: '[data-tour="journey-progress"]', title: 'Progress', description: 'Completed and skipped stages out of the total. Use it to spot new joiners whose onboarding has stalled.' },
+  { element: '[data-tour="journey-header"]', title: 'A journey up close', tab: 'mine', description: 'Opening a journey shows this header: the person, their join date, the vacancy they were hired against, the current stage and overall completion. Here you are looking at your own journey.' },
+  { element: '[data-tour="journey-actions"]', title: 'Shape the journey', description: 'HR can add a custom stage just for this person, or Re-apply templates to pull in stages added to the templates since they joined. Progress on existing stages is kept.' },
+  { element: '[data-tour="journey-stepper"]', title: 'The path', description: 'Every stage in order, coloured by its status: a full bar is completed, half is in progress, striped is skipped. Click a step to jump to its details.' },
+  { element: '[data-tour="journey-stage"]', title: 'A stage', description: 'Each stage shows its status chip, owner (who is responsible), start and completion times, and any notes. Stages filled in by Recruitment say “Completed via recruitment”.' },
+  { element: '[data-tour="journey-checklist"]', title: 'Checklist', description: 'The concrete tasks for the stage, with a running “x of y done”. The employee, their manager and HR can tick items; ticks save straight away.' },
+  { element: '[data-tour="journey-stage-buttons"]', title: 'Move it forward', description: 'HR starts a pending stage, completes or skips it, or resets it to pending. Starting and completing stamp the dates, and the overall progress updates immediately.' },
+  { element: '[data-tour="journey-stage-tools"]', title: 'Edit and notes', description: 'HR can reorder a stage with the arrows, edit its name, owner, colour, status and checklist, or delete it from this journey. Employees and managers get a Notes button to add notes and checklist items.' },
+  { element: '[data-tour="journey-templates"]', title: 'Next: stage templates', tab: 'templates', description: 'Templates are the blueprint. Every new employee — added by hand or hired through Recruitment — automatically gets the active templates as their stages, in this order.' },
+  { element: '[data-tour="journey-template-add"]', title: 'Add a stage template', description: 'Opens a form for the name, description, colour, icon, owner role (HR, manager, employee, IT, finance…), an SLA in days and whether it is active.' },
+  { element: '[data-tour="journey-template-table"]', title: 'Template list', description: 'The stages in order with their owner and SLA — the target number of days for that stage, for reference. Use the arrows to reorder and click a row to edit. Inactive templates are skipped for new hires; existing journeys only change when you re-apply templates on them.' },
+  { title: 'What to do next', description: 'Hiring a candidate in Recruitment creates the employee and completes the journey up to the Offer stage, so HR picks up from there. Pair onboarding stages with Documents (collect IDs) and Assets (hand over equipment).' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -92,7 +102,7 @@ function OverviewTab({ onOpen }: { onOpen: (id: number) => void }) {
   const inFlight = (rows.data || []).filter((r) => r.journey.total && r.journey.percent < 100).length;
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="journey-overview-filters">
         <SearchInput value={q} onChange={setQ} placeholder="Search employee, department or stage…" />
         <Checkbox label="Only journeys in progress" checked={onlyActive} onChange={(e) => setOnlyActive(e.target.checked)} />
         <span className="muted">{inFlight} in progress · {(rows.data || []).length} total</span>
@@ -109,9 +119,9 @@ function OverviewTab({ onOpen }: { onOpen: (id: number) => void }) {
             { key: 'position_title', header: 'Position', render: (r) => r.position_title || '—' },
             { key: 'join_date', header: 'Joined', render: (r) => fmtDate(r.join_date) },
             { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} label={label(r.status)} /> },
-            { key: 'current', header: 'Current stage', render: (r) => r.journey.current_stage || (r.journey.total ? <span className="muted">All done</span> : <span className="muted">No stages</span>) },
+            { key: 'current', header: 'Current stage', render: (r) => <span data-tour="journey-current">{r.journey.current_stage || (r.journey.total ? <span className="muted">All done</span> : <span className="muted">No stages</span>)}</span> },
             { key: 'progress', header: 'Progress', width: '220px', render: (r) => (
-              <div className="progress-wrap">
+              <div className="progress-wrap" data-tour="journey-progress">
                 <div className="progress" title={`${r.journey.percent}%`}><span style={{ width: `${r.journey.percent}%` }} /></div>
                 <span className="muted num" style={{ whiteSpace: 'nowrap' }}>{r.journey.completed} of {r.journey.total}</span>
               </div>
@@ -241,7 +251,7 @@ function EmployeeJourney({ employeeId, canManage, canTick, onBack }: { employeeI
             {stages.map((s, i) => (
               <div key={s.id} id={`stage-${s.id}`} className={`journey-step ${s.status}`} data-testid="journey-stage">
                 <div className="journey-dot" style={{ background: s.color || DEFAULT_COLOR }}>{i + 1}</div>
-                <div className="journey-card">
+                <div className="journey-card" data-tour="journey-stage">
                   <div className="row between" style={{ alignItems: 'flex-start' }}>
                     <div className="row" style={{ gap: 8 }}>
                       <strong>{s.name}</strong>
@@ -249,14 +259,14 @@ function EmployeeJourney({ employeeId, canManage, canTick, onBack }: { employeeI
                       <StatusBadge status={s.status} label={label(s.status)} />
                     </div>
                     {canManage ? (
-                      <div className="row" style={{ gap: 2 }}>
+                      <div className="row" style={{ gap: 2 }} data-tour="journey-stage-tools">
                         <Button size="sm" variant="ghost" aria-label="Move up" disabled={i === 0 || busy === s.id} onClick={() => move(s, -1)}>↑</Button>
                         <Button size="sm" variant="ghost" aria-label="Move down" disabled={i === stages.length - 1 || busy === s.id} onClick={() => move(s, 1)}>↓</Button>
                         <Button size="sm" variant="ghost" onClick={() => setEditStage(s)} data-testid="stage-edit">Edit</Button>
                         <Button size="sm" variant="ghost" aria-label="Delete stage" onClick={() => remove(s)}>🗑</Button>
                       </div>
                     ) : canTick ? (
-                      <Button size="sm" variant="ghost" onClick={() => setEditStage(s)}>Notes</Button>
+                      <span data-tour="journey-stage-tools"><Button size="sm" variant="ghost" onClick={() => setEditStage(s)}>Notes</Button></span>
                     ) : null}
                   </div>
                   {s.description ? <p className="muted" style={{ margin: '6px 0 0' }}>{s.description}</p> : null}
@@ -267,7 +277,7 @@ function EmployeeJourney({ employeeId, canManage, canTick, onBack }: { employeeI
                   </div>
                   {s.notes ? <div className="journey-notes">{s.notes}</div> : null}
                   {s.checklist.length ? (
-                    <ul className="journey-checklist">
+                    <ul className="journey-checklist" data-tour="journey-checklist">
                       {s.checklist.map((c, idx) => (
                         <li key={idx} className={c.done ? 'done' : ''}>
                           <Checkbox label={c.label} checked={!!c.done} disabled={!canTick} onChange={() => toggleItem(s, idx)} />
@@ -277,7 +287,7 @@ function EmployeeJourney({ employeeId, canManage, canTick, onBack }: { employeeI
                     </ul>
                   ) : null}
                   {canManage ? (
-                    <div className="row journey-actions">
+                    <div className="row journey-actions" data-tour="journey-stage-buttons">
                       {s.status === 'pending' ? <Button size="sm" variant="primary" loading={busy === s.id} onClick={() => setStatus(s, 'in_progress')} data-testid="stage-start">Start</Button> : null}
                       {s.status === 'pending' || s.status === 'in_progress' ? <Button size="sm" variant={s.status === 'in_progress' ? 'primary' : 'secondary'} loading={busy === s.id} onClick={() => setStatus(s, 'completed')} data-testid="stage-complete">Complete</Button> : null}
                       {s.status === 'pending' || s.status === 'in_progress' ? <Button size="sm" loading={busy === s.id} onClick={() => setStatus(s, 'skipped')}>Skip</Button> : null}
@@ -412,10 +422,10 @@ function TemplatesTab() {
       <div className="toolbar">
         <span className="muted">{activeCount} active of {list.length} stage{list.length === 1 ? '' : 's'}</span>
         <span style={{ marginLeft: 'auto' }}>
-          <Button variant="primary" data-testid="template-add" onClick={() => setEdit({ color: DEFAULT_COLOR, icon: 'flag', owner_role: 'hr', active: 1 })}>+ Add stage template</Button>
+          <Button variant="primary" data-testid="template-add" data-tour="journey-template-add" onClick={() => setEdit({ color: DEFAULT_COLOR, icon: 'flag', owner_role: 'hr', active: 1 })}>+ Add stage template</Button>
         </span>
       </div>
-      <Card padded={false}>
+      <Card padded={false} tour="journey-template-table">
         <Table<Template>
           loading={templates.loading && !templates.data}
           rows={list}

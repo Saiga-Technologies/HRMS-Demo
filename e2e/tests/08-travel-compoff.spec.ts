@@ -37,7 +37,7 @@ test.describe('comp off', () => {
   test('employee requests a detected comp off, the manager approves it, and the CO balance increases', async ({ page }) => {
     await login(page, USERS.employee);
     await page.goto('/leave?tab=compoff');
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
     const balance = page.getByTestId('compoff-balance');
     await expect(balance).toBeVisible();
     const before = Number((await balance.locator('.stat-value').textContent())?.trim() || '0');
@@ -70,7 +70,8 @@ test.describe('comp off', () => {
     await login(page, USERS.hr);
     await page.goto('/leave?tab=compoff');
     await expect(page.getByText('Detection criteria')).toBeVisible();
-    await runTour(page);
+    await runTour(page, { minSteps: 20 });
+    await page.goto('/leave?tab=compoff'); // the tour walks through every tab
     await page.getByTestId('compoff-detect').click();
     await expectToast(page, 'success', /Scanned/);
     await page.goto('/leave?tab=settings');

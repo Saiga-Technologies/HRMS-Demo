@@ -3,21 +3,26 @@ import { useSearchParams } from 'react-router-dom';
 import { api, ApiError, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { todayIso } from '../lib/format';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { Icon } from '../components/Icons';
 import { Button, Card, PageHeader, SearchInput, Select, Stat, downloadUrl, useConfirm, useFetch, useToast } from '../components/ui';
 import { RosterGrid, RosterLegend, ShiftChip } from '../components/roster/RosterGrid';
 import { AssignModal } from '../components/roster/AssignModal';
 import { RosterDay, RosterEmployee, RosterResponse, addDaysIso, dayHead, isIso, mondayOf, weekLabel } from '../components/roster/shared';
 
-const TOUR = [
-  { element: '[data-tour="roster-header"]', title: 'Shift roster', description: 'Who works which shift, week by week. Explicit assignments override each employee’s default shift; weekly offs and holidays come from attendance settings.' },
-  { element: '[data-tour="roster-week-nav"]', title: 'Pick a week', description: 'Step to the previous or next week, or jump back to this week. The week is kept in the address bar so you can share a link.' },
-  { element: '[data-tour="roster-my-week"]', title: 'My week', description: 'Your own shifts for the selected week, with scheduled days and hours at a glance.' },
-  { element: '[data-tour="roster-grid"]', title: 'The roster grid', description: 'Employees down the side, days across. Solid chips are assigned shifts, faded chips are the default shift, dashed chips are days off. Managers and HR click a cell to assign a shift, a day off or a note.' },
-  { element: '[data-tour="roster-legend"]', title: 'Legend', description: 'Each shift has its own colour across the grid.' },
-  { element: '[data-tour="roster-copy"]', title: 'Copy previous week', description: 'Repeat last week’s assignments into this week in one click. Approved leave is flagged before anything is overwritten.' },
-  { element: '[data-tour="roster-export"]', title: 'Export', description: 'Download the week (with your current filters) as a CSV for printing or sharing.' },
+const TOUR: TourStep[] = [
+  { title: 'Shift roster, step by step', description: 'The roster plans who works which shift each week. You will go through: 1) pick a week, 2) see your own week, 3) read the team grid, 4) assign shifts or days off, 5) copy last week forward, and 6) export it to share.' },
+  { element: '[data-tour="roster-header"]', title: 'Shift roster', description: 'Employees see their own shifts here; managers plan their team and HR can plan anyone. A shift assigned here overrides the employee’s default shift for that day, and weekly offs and holidays come from Attendance settings.' },
+  { element: '[data-tour="roster-week-nav"]', title: '1. Pick a week', description: 'Step to the previous or next week, or jump back to This week. The week is kept in the address bar, so you can share a link to it.' },
+  { element: '[data-tour="roster-search"]', title: 'Find someone', description: 'Managers and HR can search the grid by name or employee code.' },
+  { element: '[data-tour="roster-dept"]', title: 'Filter by department', description: 'HR can show one department at a time. The CSV export uses the same filter.' },
+  { element: '[data-tour="roster-my-week"]', title: '2. My week', description: 'Your own shifts for the selected week: scheduled days, scheduled hours and days off, then one chip per day with the shift and its times. Today is highlighted.' },
+  { element: '[data-tour="roster-legend"]', title: 'Reading the chips', description: 'Every shift has its own colour. Solid chips are assigned for that day, faded chips are the employee’s default shift, and dashed chips are days off.' },
+  { element: '[data-tour="roster-grid"]', title: '3. The team grid', description: 'Employees down the side, the seven days across and the week’s scheduled hours on the right. Holidays are marked in the day header (·H) and approved leave shows an On leave badge in the cell.' },
+  { element: '[data-tour="roster-cell"]', title: '4. Assign, day off or clear', description: 'Managers and HR click any cell to open the assignment form: choose a shift or Day off and add an optional note. If the person has approved leave that day you are warned and can assign anyway. Clear override returns the day to the default shift.' },
+  { element: '[data-tour="roster-copy"]', title: '5. Copy previous week', description: 'Repeat last week’s assignments into the week you are viewing in one click. Existing assignments on those days are overwritten, and anyone on approved leave is listed for you to confirm first.' },
+  { element: '[data-tour="roster-export"]', title: '6. Export', description: 'Download the week, including notes, as a CSV file to print or share.' },
+  { title: 'What to do next', description: 'Plan a week ahead and copy it forward when the pattern repeats. Shifts are defined under Attendance → Shifts and drive late marks and work hours, and approved leave from the Leave page appears here automatically.' },
 ];
 
 export default function Roster() {
@@ -96,9 +101,9 @@ export default function Roster() {
           <Button size="sm" onClick={() => goWeek(addDaysIso(from, 7))} aria-label="Next week" data-testid="roster-next"><Icon name="chevronRight" size={15} /></Button>
           <Button size="sm" variant="ghost" onClick={() => goWeek(thisWeek)} disabled={from === thisWeek} data-testid="roster-this-week">This week</Button>
         </div>
-        {isManager ? <SearchInput value={q} onChange={setQ} placeholder="Search name or code…" /> : null}
+        {isManager ? <SearchInput value={q} onChange={setQ} placeholder="Search name or code…" tour="roster-search" /> : null}
         {isHr ? (
-          <Select value={dept} onChange={(e) => setDept(e.target.value)} data-testid="roster-dept" aria-label="Department" style={{ width: 'auto', minWidth: 180 }}>
+          <Select value={dept} onChange={(e) => setDept(e.target.value)} data-testid="roster-dept" data-tour="roster-dept" aria-label="Department" style={{ width: 'auto', minWidth: 180 }}>
             <option value="">All departments</option>
             {(depts.data || []).map((d) => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
           </Select>

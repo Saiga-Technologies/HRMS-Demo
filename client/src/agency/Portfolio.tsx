@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { Button, Card, EmptyState, PageHeader, SearchInput, Select, Stat, Table, useFetch } from '../components/ui';
 import { Icon } from '../components/Icons';
 import { openCompany, followLink, type AgencyAlert } from './AgencyApp';
@@ -11,13 +11,31 @@ import { FLAG } from './AgencyBar';
 import { COUNTRY_NAME, Countdown, HEALTH_LABEL, HealthPill, LogoTile, MARKETS, MilestoneTrack, STATUS_LABEL, daysText, fmtMinor, plural, urgency, type Health, type PortfolioCompany, type Staff, type Summary } from './portfolio/bits';
 import './portfolio.css';
 
-const TOUR = [
-  { element: '[data-tour="pf-header"]', title: 'Your portfolio', description: 'Every client company your agency runs HR and payroll for. Account managers see only the companies assigned to them.' },
-  { element: '[data-tour="pf-stats"]', title: 'Portfolio at a glance', description: 'Companies and employees under management, how many are healthy, payrolls due in the next 7 days, statutory filings and open service requests.' },
-  { element: '[data-tour="pf-attention"]', title: 'Needs attention', description: 'The most urgent items across all companies: payroll milestones about to slip, overdue filings, requests past SLA and unpaid invoices. Click one to jump straight to it.' },
-  { element: '[data-tour="pf-filters"]', title: 'Find a company', description: 'Search by name, city or industry and narrow by market (India, GCC, US), health or account manager. Switch between cards and a table.' },
-  { element: '[data-tour="pf-list"]', title: 'Company cards', description: 'Each card shows the payroll countdown to the next milestone (the last three days are highlighted), the five-step payroll track, compliance, requests and billing. Click a card for details.' },
-  { element: '[data-tour="pf-open"]', title: 'Open a company', description: 'Open takes you inside the company with full HR access. The agency bar at the top lets you switch company or come back here.' },
+const TOUR: TourStep[] = [
+  { title: 'Your agency portfolio', description: 'This is where every working day starts. The loop: 1) check the health of your portfolio, 2) clear what needs attention, 3) read each company\'s payroll countdown and milestone track, 4) open a company to do the work. The payroll & compliance calendar, service desk, billing and team pages in the sidebar complete the cycle.' },
+  { element: '[data-tour="pf-header"]', title: 'Whose companies you see', description: 'Owners and admins see every client company; account managers, payroll specialists and recruiters see only the companies assigned to them on the Agency team page.' },
+  { element: '[data-tour="pf-add"]', title: 'Add a client company', description: 'Owners, admins and account managers onboard a new client here. A short wizard sets up the company, its payroll calendar, the client HR admin login and billing; it then appears in this portfolio in Onboarding status.' },
+  { element: '[data-tour="pf-stats"]', title: 'Portfolio at a glance', description: 'The numbers across every company you look after: how many clients and employees you run payroll for, by market (India, GCC, US).' },
+  { element: '[data-tour="pf-stat-health"]', title: 'Health: healthy, watch, at risk', description: 'Each company is red when a payroll milestone, a filing or a request is overdue, and amber when a milestone or filing is only days away or approvals are piling up. Click the tile to show only the companies at risk; click again to clear.' },
+  { element: '[data-tour="pf-stat-payroll"]', title: 'Payrolls due this week', description: 'Companies whose next payroll milestone falls within seven days. Click it to open the payroll & compliance calendar.' },
+  { element: '[data-tour="pf-stat-filings"]', title: 'Statutory filings', description: 'Filings already overdue, with how many fall due this week (PF, TDS, WPS, GOSI, Form 941 and so on). Click to see them on the calendar.' },
+  { element: '[data-tour="pf-stat-requests"]', title: 'Open service requests', description: 'Requests clients have raised that are still open, and how many are past their response SLA. Click to go to the service desk.' },
+  { element: '[data-tour="pf-attention"]', title: 'Needs attention', description: 'Work this list first: payroll milestones about to slip, overdue filings, requests past SLA and unpaid invoices, most urgent first. Click an item to jump straight to it, inside the company or on the right agency page.' },
+  { element: '[data-testid="bell"]', title: 'Alerts everywhere', description: 'The same alerts sit behind this bell on every agency page, so you can act on a countdown ("Payroll generation: 3 days to go") without coming back here.' },
+  { element: '[data-tour="pf-filters"]', title: 'Find a company', description: 'Search by name, city or industry, narrow by market, health or account manager, and sort by urgency, name or headcount. The icons on the right switch between cards and a compact table.' },
+  { element: '[data-tour="pf-list"]', title: 'One card per company', description: 'Sorted most urgent first: at-risk companies and the nearest payroll deadlines come to the top. Click a card to open its details drawer, where admins can reassign the account manager or change the company status.' },
+  { element: '[data-tour="pf-card-health"]', title: 'Health and the reasons', description: 'The pill shows the company\'s health; the line below lists why (for example "Payroll generation overdue" or "2 filings overdue"). Hover the pill for the full list.' },
+  { element: '[data-tour="pf-card-countdown"]', title: 'Payroll countdown', description: 'Days left to the next payroll milestone, which step it is, the period, the pay day and who owns the step (agency or client). The last three days turn amber and anything late turns red.' },
+  { element: '[data-tour="pf-card-track"]', title: 'Milestone track', description: 'The five payroll steps, counted back from pay day in working days: client inputs (T-7), attendance cut-off (T-5), payroll generation (T-3), client approval (T-2) and payment on pay day. Ticks are done; the ringed dot is next. Hover a dot for its date.' },
+  { element: '[data-tour="pf-card-facts"]', title: 'People, filings, requests, billing', description: 'Headcount, filings overdue or due this week, open requests (late ones in red) and the amount the client still owes the agency.' },
+  { element: '[data-tour="pf-card-actions"]', title: 'Shortcuts', description: 'The account manager for this client, then Calendar (this company\'s deadlines on the cross-company calendar) and Services (its payroll calendar, filings, requests and invoices).' },
+  { element: '[data-tour="pf-open"]', title: 'Open a company', description: 'Takes you inside the company with full HR access to run its payroll, attendance and people. The agency bar at the top of the company lets you switch to another client or come back to the portfolio.' },
+  { element: '[data-nav="/agency/calendar"]', title: 'Next: the calendar', description: 'Every payroll milestone, statutory filing and invoice due date across your clients on one calendar, with a payroll countdown for the week.' },
+  { element: '[data-nav="/agency/requests"]', title: 'Service desk', description: 'Requests clients raise from their Agency services page land here, with response SLAs by priority. The badge counts the ones that need you.' },
+  { element: '[data-nav="/agency/billing"]', title: 'Billing', description: 'Generate monthly invoices from each client\'s pricing, issue them, record payments and chase overdue balances.' },
+  { element: '[data-nav="/agency/team"]', title: 'Agency team', description: 'Your colleagues, their roles and which client companies each one covers.' },
+  { element: '[data-testid="nav-new-company"]', title: 'Onboarding', description: 'Add a new client company. It is open to owners, admins and account managers.' },
+  { title: 'What to do next', description: 'Start with Needs attention, then the companies in red or amber. Open a company to generate payroll on time (T-3), check the calendar for filings this week, answer late requests on the service desk, and issue invoices at month end in Billing.' },
 ];
 
 const HEALTH_RANK: Record<Health, number> = { red: 0, amber: 1, green: 2 };
@@ -82,18 +100,18 @@ export default function Portfolio({ alerts }: { alerts: AgencyAlert[] }) {
         tour="pf-header"
         title={`${greeting()}${firstName ? `, ${firstName}` : ''}`}
         subtitle={<span data-testid="pf-scope">{scope} {s ? <span className="muted">Today is {new Date(s.today + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}.</span> : null}</span>}
-        actions={canOnboard ? <Button variant="primary" onClick={() => navigate('/agency/companies/new')} data-testid="pf-add-company"><Icon name="plus" size={15} /> Add a client company</Button> : undefined}
+        actions={canOnboard ? <Button variant="primary" onClick={() => navigate('/agency/companies/new')} data-testid="pf-add-company" data-tour="pf-add"><Icon name="plus" size={15} /> Add a client company</Button> : undefined}
       />
 
       <div className="stat-strip" data-tour="pf-stats">
         <Stat label="Client companies" value={s ? s.companies : '…'} icon="building" color="var(--brand)"
           hint={s ? s.by_country.map((x) => `${x.companies} ${FLAG[x.country_code] || x.country_code}`).join(' · ') : undefined} />
         <Stat label="Employees managed" value={s ? s.employees.toLocaleString() : '…'} icon="users" color="var(--info)" />
-        <Stat label="Health" value={s ? <span className="pf-health-split"><span className="g">{s.health.green}</span><span className="a">{s.health.amber}</span><span className="r">{s.health.red}</span></span> : '…'} icon="shield" color="var(--success)"
+        <Stat label="Health" tour="pf-stat-health" value={s ? <span className="pf-health-split"><span className="g">{s.health.green}</span><span className="a">{s.health.amber}</span><span className="r">{s.health.red}</span></span> : '…'} icon="shield" color="var(--success)"
           hint="healthy · watch · at risk" onClick={() => setHealth(health === 'red' ? '' : 'red')} />
-        <Stat label="Payroll due in 7 days" value={s ? s.payroll_due_7d : '…'} icon="banknote" color="var(--warning)" hint="next milestone within a week" onClick={() => navigate('/agency/calendar')} />
-        <Stat label="Filings" value={s ? <span>{s.filings_overdue}<small className="pf-stat-small"> overdue</small></span> : '…'} icon="clipboard" color="var(--danger)" hint={s ? `${s.filings_due_7d} due this week` : undefined} onClick={() => navigate('/agency/calendar')} />
-        <Stat label="Open requests" value={s ? s.requests_open : '…'} icon="heartHandshake" color="var(--accent)" hint={s ? `${s.requests_breached} past SLA` : undefined} onClick={() => navigate('/agency/requests')} />
+        <Stat label="Payroll due in 7 days" tour="pf-stat-payroll" value={s ? s.payroll_due_7d : '…'} icon="banknote" color="var(--warning)" hint="next milestone within a week" onClick={() => navigate('/agency/calendar')} />
+        <Stat label="Filings" tour="pf-stat-filings" value={s ? <span>{s.filings_overdue}<small className="pf-stat-small"> overdue</small></span> : '…'} icon="clipboard" color="var(--danger)" hint={s ? `${s.filings_due_7d} due this week` : undefined} onClick={() => navigate('/agency/calendar')} />
+        <Stat label="Open requests" tour="pf-stat-requests" value={s ? s.requests_open : '…'} icon="heartHandshake" color="var(--accent)" hint={s ? `${s.requests_breached} past SLA` : undefined} onClick={() => navigate('/agency/requests')} />
       </div>
 
       <Card tour="pf-attention" className="pf-attention" title={<span className="row" style={{ gap: 8 }}><Icon name="alert" size={16} /> Needs attention</span>}
@@ -200,15 +218,15 @@ function CompanyCard({ c, first, onDetails, onCalendar }: { c: PortfolioCompany;
           <span className="pf-card-name-row"><strong data-testid="pf-card-name">{c.name}</strong>{s && c.status !== 'active' ? <span className={`badge badge-${c.status === 'onboarding' ? 'info' : 'warning'}`} data-testid="pf-card-status">{STATUS_LABEL[c.status]}</span> : null}</span>
           <small>{[c.city, COUNTRY_NAME[c.country_code] || c.country_code].filter(Boolean).join(', ')}{c.industry ? ` · ${c.industry}` : ''}</small>
         </div>
-        {s ? <HealthPill health={s.health} reasons={s.reasons} /> : <span className="badge badge-neutral">{STATUS_LABEL[c.status]}</span>}
+        <span data-tour={first ? 'pf-card-health' : undefined} style={{ display: 'inline-flex', flex: 'none' }}>{s ? <HealthPill health={s.health} reasons={s.reasons} /> : <span className="badge badge-neutral">{STATUS_LABEL[c.status]}</span>}</span>
       </header>
 
       {s ? (
         <>
           {s.reasons.length ? <div className="pf-reasons" title={s.reasons.join(' · ')}>{s.reasons.slice(0, 2).join(' · ')}{s.reasons.length > 2 ? ` +${s.reasons.length - 2}` : ''}</div> : null}
-          <Countdown s={s} compact />
-          <MilestoneTrack milestones={s.payroll.milestones} />
-          <dl className="pf-facts">
+          <div data-tour={first ? 'pf-card-countdown' : undefined}><Countdown s={s} compact /></div>
+          <div data-tour={first ? 'pf-card-track' : undefined}><MilestoneTrack milestones={s.payroll.milestones} /></div>
+          <dl className="pf-facts" data-tour={first ? 'pf-card-facts' : undefined}>
             <div><dt>People</dt><dd>{s.headcount}</dd></div>
             <div><dt>Filings</dt><dd className={s.compliance.overdue ? 'pf-overdue-text' : s.compliance.due_7d ? 'pf-soon-text' : ''}>{s.compliance.overdue ? `${s.compliance.overdue} overdue` : s.compliance.due_7d ? `${s.compliance.due_7d} this week` : 'On track'}</dd></div>
             <div><dt>Requests</dt><dd className={s.requests.breached ? 'pf-overdue-text' : ''}>{s.requests.open}{s.requests.breached ? ` (${s.requests.breached} late)` : ''}</dd></div>
@@ -217,7 +235,7 @@ function CompanyCard({ c, first, onDetails, onCalendar }: { c: PortfolioCompany;
         </>
       ) : <p className="muted pf-off-note">This company is offboarded. Its data is kept read-only.</p>}
 
-      <footer className="pf-card-foot">
+      <footer className="pf-card-foot" data-tour={first ? 'pf-card-actions' : undefined}>
         <span className="pf-card-am"><Icon name="user" size={13} /> {c.account_manager_name || 'Unassigned'}</span>
         <span className="pf-card-actions">
           <button className="btn btn-ghost btn-sm" onClick={stop(onCalendar)} title="Payroll and compliance calendar" data-testid={`pf-calendar-${c.slug}`}><Icon name="calendar" size={14} /><span className="hide-xs">Calendar</span></button>

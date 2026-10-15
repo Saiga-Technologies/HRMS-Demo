@@ -21,7 +21,7 @@ test.describe('agency billing', () => {
     await expect(page.getByTestId('tab-overview')).toBeVisible();
     // Seeded history: overdue invoices are flagged on the overview tab.
     await expect(page.locator('[data-tab="overview"] .tab-badge')).toBeVisible();
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
 
     // Generate drafts for the current month.
     const period = thisMonth();

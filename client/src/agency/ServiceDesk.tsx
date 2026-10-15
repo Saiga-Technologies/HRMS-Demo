@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDateTime } from '../lib/format';
 import { Button, Card, Checkbox, PageHeader, SearchInput, Select, Stat, Table, Tabs, useFetch } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -13,12 +13,23 @@ import './calendar.css';
 
 type Tab = 'active' | 'breached' | 'all';
 
-const TOUR = [
-  { element: '[data-tour="desk-stats"]', title: 'Desk at a glance', description: 'Requests waiting for a first response, SLA breaches, requests parked with the client and anything nobody has picked up yet, across every company you look after.' },
+const TOUR: TourStep[] = [
+  { title: 'Service desk', description: 'Client HR teams raise requests from their Agency services page (payroll changes, onboarding, exits, letters, compliance questions); you work them here across every company. The flow: 1) pick up new requests, 2) watch the SLA, 3) open, assign and reply, 4) resolve.', tab: 'active' },
+  { element: '[data-tour="desk-stats"]', title: 'Desk at a glance', description: 'Four counters across every company you look after. Most of them filter the queue when clicked.' },
+  { element: '[data-tour="desk-stat-open"]', title: 'New requests', description: 'Raised by a client and not answered yet. Your first reply moves a request to In progress. Click to list only these.' },
+  { element: '[data-tour="desk-stat-breached"]', title: 'SLA breached', description: 'Open or in-progress requests that have passed their response deadline. They also turn the company red in the portfolio. Click to open the breached queue.' },
+  { element: '[data-tour="desk-stat-waiting"]', title: 'Waiting for the client', description: 'Requests you have parked while the client sends something. The SLA clock is paused; when the client replies the request goes back to In progress.' },
+  { element: '[data-tour="desk-stat-unassigned"]', title: 'Unassigned', description: 'Active requests nobody has picked up yet. Open one and choose Assign to me.' },
   { element: '[data-tour="desk-tabs"]', title: 'Queues', description: 'Active requests, the ones already past their SLA, and the full history. The red badges count new requests and breaches.' },
-  { element: '[data-tour="desk-filters"]', title: 'Filter the queue', description: 'Narrow by status, priority or company, search by number or subject, or tick "Assigned to me" to see only your own work.' },
-  { element: '[data-tour="desk-table"]', title: 'Every request with its SLA', description: 'The SLA column counts down to the response deadline (set by priority) and turns red once it is breached. Click a row to open the conversation.' },
-  { element: '[data-tour="desk-refresh"]', title: 'Refresh', description: 'Clients raise requests from their "Agency services" page; refresh to pull in the latest.' },
+  { element: '[data-tour="desk-filters"]', title: 'Filter the queue', description: 'Search by number, subject, company or requester, narrow by status, priority or company, or tick "Assigned to me" to see only your own work.' },
+  { element: '[data-tour="desk-table"]', title: 'The active queue', description: 'Every open, in-progress or waiting request with its SLA, company, priority, status and assignee. Click a row to open it.' },
+  { element: '[data-tour="desk-table"] [data-testid="sla-chip"]', title: 'Response SLA', description: 'Counts down to the response deadline set by priority (by default urgent 4 hours, high 24, normal 48, low 96). It turns amber in the last 8 hours and red once breached; closed requests show Met or Missed.' },
+  { element: '[data-tour="desk-table"] [data-testid="desk-row"]', title: 'Open a request', description: 'Opens the conversation in a side panel. There you assign it to yourself, change status or priority (changing priority recalculates the SLA), and reply; the client sees your reply on their Requests tab.' },
+  { element: '[data-tour="desk-table"] .ops-company', title: 'Work inside the company', description: 'The company chip opens this request inside the company\'s Agency services page, next to its payroll calendar and filings.' },
+  { element: '[data-tour="desk-table"]', title: 'SLA breached queue', description: 'Only the requests past their deadline. Clear this list first every morning.', tab: 'breached' },
+  { element: '[data-tour="desk-table"]', title: 'All requests', description: 'The full history including resolved and closed requests, useful to look up an earlier answer for a client.', tab: 'all' },
+  { element: '[data-tour="desk-refresh"]', title: 'Refresh', description: 'Pull in requests raised since you opened the page.' },
+  { title: 'What to do next', description: 'Assign new requests, answer breached ones first, and set Waiting for client when you need something from them so the SLA pauses. Resolve when done; the client can reopen if it is not. Payroll-related requests are often finished on the company\'s payroll calendar.' },
 ];
 
 export default function ServiceDesk() {
@@ -77,10 +88,10 @@ export default function ServiceDesk() {
       />
 
       <div className="stat-strip" data-tour="desk-stats">
-        <Stat label="New (open)" value={list.data ? counts.open : '…'} icon="bell" color="var(--info)" onClick={() => { setParam('tab', 'active'); setStatus('open'); }} hint="Waiting for a first response" />
-        <Stat label="SLA breached" value={list.data ? counts.breached : '…'} icon="alert" color="var(--danger)" onClick={() => { setParam('tab', 'breached'); setStatus(''); }} hint="Past the response deadline" />
-        <Stat label="Waiting for client" value={list.data ? counts.waiting : '…'} icon="clock" color="var(--warning)" onClick={() => { setParam('tab', 'active'); setStatus('waiting_client'); }} hint="Parked until the client replies" />
-        <Stat label="Unassigned" value={list.data ? counts.unassigned : '…'} icon="user" color="var(--accent)" hint="Active requests nobody has picked up" />
+        <Stat label="New (open)" tour="desk-stat-open" value={list.data ? counts.open : '…'} icon="bell" color="var(--info)" onClick={() => { setParam('tab', 'active'); setStatus('open'); }} hint="Waiting for a first response" />
+        <Stat label="SLA breached" tour="desk-stat-breached" value={list.data ? counts.breached : '…'} icon="alert" color="var(--danger)" onClick={() => { setParam('tab', 'breached'); setStatus(''); }} hint="Past the response deadline" />
+        <Stat label="Waiting for client" tour="desk-stat-waiting" value={list.data ? counts.waiting : '…'} icon="clock" color="var(--warning)" onClick={() => { setParam('tab', 'active'); setStatus('waiting_client'); }} hint="Parked until the client replies" />
+        <Stat label="Unassigned" tour="desk-stat-unassigned" value={list.data ? counts.unassigned : '…'} icon="user" color="var(--accent)" hint="Active requests nobody has picked up" />
       </div>
 
       <Tabs

@@ -12,7 +12,7 @@ test.describe.serial('performance reviews', () => {
     await expect(page.getByTestId('tab-me')).toBeVisible();
     await expect(page.getByTestId('tab-team')).toBeVisible();
     await expect(page.getByTestId('tab-cycles')).toBeVisible();
-    await runTour(page);
+    await runTour(page, { minSteps: 15 });
 
     await page.getByTestId('tab-cycles').click();
     // Seeded cycles: a closed H1 and an open H2.

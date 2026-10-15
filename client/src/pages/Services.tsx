@@ -56,32 +56,57 @@ const FILING_STATES: Filing['state'][] = ['overdue', 'due_soon', 'upcoming', 'fi
 const FILING_LABEL: Record<Filing['state'], string> = { overdue: 'Overdue', due_soon: 'Due soon', upcoming: 'Upcoming', filed: 'Filed', not_applicable: 'Not applicable' };
 const FILING_TONE: Record<Filing['state'], 'neutral' | 'success' | 'warning' | 'danger' | 'info'> = { overdue: 'danger', due_soon: 'warning', upcoming: 'neutral', filed: 'success', not_applicable: 'neutral' };
 
-const TOURS: Record<Tab, TourStep[]> = {
-  calendar: [
-    { element: '[data-tour="svc-tabs"]', title: 'Agency services', description: 'Everything your HR agency runs for this company: the payroll calendar, statutory filings, service requests and invoices. Red badges count what is waiting on you.' },
-    { element: '[data-tour="svc-countdown"]', title: 'Countdown to the next step', description: 'How many days are left for the next payroll milestone and who owns it: the client (you) or the agency.' },
-    { element: '[data-tour="svc-timeline"]', title: 'This period\'s milestones', description: 'Inputs, attendance cut-off, payroll generation, client approval and salary payment, each with its due date, owner and status. Client HR confirms inputs here; the agency locks attendance.' },
-    { element: '[data-tour="svc-next"]', title: 'Next period', description: 'A preview of next month\'s dates so both sides can plan ahead.' },
-    { element: '[data-tour="svc-history"]', title: 'Recent periods', description: 'The last three payroll periods with their stage and net pay.' },
-  ],
-  compliance: [
-    { element: '[data-tour="svc-tabs"]', title: 'Agency services', description: 'Switch between the payroll calendar, compliance, requests and invoices.' },
-    { element: '[data-tour="svc-filing-stats"]', title: 'Filing health', description: 'Overdue filings, those due within a week, and what has been filed. Click a tile to filter the list.' },
-    { element: '[data-tour="svc-filing-filters"]', title: 'Filter by state', description: 'Show overdue, due soon, upcoming, filed or not-applicable filings.' },
-    { element: '[data-tour="svc-filings"]', title: 'Statutory filings', description: 'Each filing with its authority, period, due date and acknowledgement reference. The agency marks filings as filed (with the challan or acknowledgement number) or not applicable.' },
-  ],
-  requests: [
-    { element: '[data-tour="svc-tabs"]', title: 'Agency services', description: 'Switch between the payroll calendar, compliance, requests and invoices.' },
-    { element: '[data-tour="svc-new-request"]', title: 'Ask the agency', description: 'Raise a request for anything the agency handles: payroll changes, onboarding, exits, letters, compliance questions.' },
+/** One tour for the whole page, in the order the work happens; wording follows who is looking (client HR or agency staff). */
+function servicesTour(agency: boolean): TourStep[] {
+  const you = agency ? 'the client' : 'you';
+  return [
+    { title: 'Agency services', description: agency
+      ? 'Service delivery for this client. Each month runs the same loop: client inputs (T-7), attendance cut-off (T-5), payroll generation (T-3), client approval (T-2) and payment on pay day, alongside statutory filings, the client\'s requests and invoices.'
+      : 'Everything your HR agency runs for your company. Each month: you send payroll inputs (T-7), the agency cuts off attendance (T-5) and generates payroll (T-3), you approve the register (T-2) and the agency pays salaries on pay day. Filings, requests and invoices are on the other tabs.', tab: 'calendar' },
+    { element: '[data-tour="svc-tabs"]', title: 'Four tabs, one loop', description: `Payroll calendar, compliance, requests and invoices, in that order. Red badges count what is waiting: a register to approve, filings needing attention, requests waiting on ${you}.` },
+    { element: '[data-testid="svc-approval-banner"]', title: agency ? 'Waiting for the client' : 'Ready for your approval', description: agency
+      ? 'The register is processed. Only the client\'s HR team can approve it; salaries are paid after that.'
+      : 'The agency has processed this month\'s payroll. Review and approve the register in Payroll so salaries go out on pay day.' },
+    { element: '[data-tour="svc-countdown"]', title: 'Countdown to the next step', description: `Days left (or days overdue) for the next payroll milestone, its due date and who owns it: Client means ${agency ? 'the client\'s HR team' : 'your team'}, Agency means the HR agency.` },
+    { element: '[data-tour="svc-period-facts"]', title: 'This period', description: 'The payroll month and whether its attendance is locked, the pay date and current stage, and the net pay once the run is processed.' },
+    { element: '[data-tour="svc-timeline"]', title: 'The five milestones', description: 'Every step of this month\'s payroll with its due date, owner and status. Dates count back from pay day in working days of this company\'s calendar (weekends and holidays skipped). The ringed step is next.' },
+    { element: '[data-testid="ms-inputs"]', title: 'T-7: payroll inputs', description: agency
+      ? 'The client sends joiners, exits, salary changes and one-off payments. When they press Inputs sent this ticks; you can also tick it with Mark inputs received.'
+      : 'Send the agency this month\'s joiners, exits, salary changes and one-off payments (raise a request on the Requests tab if needed), then press Inputs sent.' },
+    { element: '[data-testid="ms-attendance_lock"]', title: 'T-5: attendance cut-off', description: agency
+      ? 'Lock attendance to freeze the period. After that, attendance, leave and appeal changes up to the cut-off date are refused and go into next month as adjustments; live punches still work.'
+      : 'The agency locks attendance for the month. After that, attendance and leave changes up to the cut-off date are refused and go into next month as adjustments, so get approvals done before this date.' },
+    { element: '[data-testid="ms-generation"]', title: 'T-3: payroll generation', description: agency
+      ? 'Generate and process the run in Payroll. The countdown turns amber in these last three days and red if it slips, here, on the portfolio and in the agency alerts.'
+      : 'The agency generates and processes the payroll run from your inputs and the locked attendance.' },
+    { element: '[data-testid="ms-client_approval"]', title: 'T-2: client approval', description: agency
+      ? 'The client\'s HR approves the processed register in Payroll. Agency staff cannot approve it for them; nudge the client through a request if it is late.'
+      : 'You review the processed register and approve it in Payroll, Runs. Nothing is paid until you approve.' },
+    { element: '[data-testid="ms-payment"]', title: 'Pay day: payment and payslips', description: 'The agency pays salaries and releases payslips to employees. The period is then complete.' },
+    { element: '[data-tour="svc-next"]', title: 'Next period', description: 'Next month\'s dates for every milestone, so both sides can plan ahead.' },
+    { element: '[data-tour="svc-history"]', title: 'Recent periods', description: 'The last payroll periods with their pay date, final stage and net pay.' },
+    { element: '[data-tour="svc-filing-stats"]', title: 'Next: statutory compliance', description: 'The returns this company must file (for example PF, ESI, TDS in India; WPS and social insurance in the GCC; federal and state filings in the US). Tiles count overdue, due within 7 days, upcoming and filed; click one to filter.', tab: 'compliance' },
+    { element: '[data-testid="svc-compliance-readonly"]', title: 'Filed by your agency', description: 'Your HR agency files these returns and records the acknowledgement references. You can follow every filing here, read-only.' },
+    { element: '[data-tour="svc-filing-filters"]', title: 'Filter by state', description: 'Open shows overdue, due soon and upcoming together; or pick one state, or All.' },
+    { element: '[data-tour="svc-filings"]', title: 'Statutory filings', description: 'Each filing with its authority, period, due date (and days left), state and, once filed, the acknowledgement reference, amount and who filed it. Due dates are demo master data; confirm with the authority.' },
+    { element: '[data-testid="filing-file"]', title: 'Mark as filed', description: 'Record the acknowledgement or challan reference (required), the amount paid and notes. Use N/A when a filing does not apply this period; filed items can be edited or reopened.' },
+    { element: '[data-tour="svc-new-request"]', title: 'Next: requests', description: agency
+      ? 'Raise a request on the client\'s behalf. Requests from every company also arrive on the agency service desk.'
+      : 'Ask the agency for anything: payroll changes, onboarding, exits, letters, compliance questions. Pick a category and priority; priority sets the response SLA.', tab: 'requests' },
     { element: '[data-tour="svc-request-filters"]', title: 'Active or all', description: 'Focus on open work or browse the full history.' },
-    { element: '[data-tour="svc-requests"]', title: 'Your requests', description: 'Each request shows its SLA (set by priority), status and who is handling it. Click one to read the conversation and reply.' },
-  ],
-  invoices: [
-    { element: '[data-tour="svc-tabs"]', title: 'Agency services', description: 'Switch between the payroll calendar, compliance, requests and invoices.' },
-    { element: '[data-tour="svc-invoice-stats"]', title: 'Balance', description: 'What is outstanding with the agency and how much of it is past due.' },
-    { element: '[data-tour="svc-invoices"]', title: 'Invoices', description: 'Every invoice the agency has issued with its period, dates, total, payments and status. Open the PDF for a copy.' },
-  ],
-};
+    { element: '[data-tour="svc-requests"]', title: agency ? 'This client\'s requests' : 'Your requests', description: agency
+      ? 'Click a row to open the conversation: assign it to yourself, change status or priority and reply. Set Waiting for client to pause the SLA while you wait for them.'
+      : 'Each request with its priority, status, SLA and who at the agency is handling it. Click one to read the conversation, reply, or close it; resolved requests can be reopened.' },
+    { element: '[data-tour="svc-requests"] [data-testid="sla-chip"]', title: 'Response SLA', description: 'The agency\'s response deadline, set by priority (by default urgent 4 hours, high 24, normal 48, low 96). It pauses while a request is waiting for the client.' },
+    { element: '[data-tour="svc-invoice-stats"]', title: 'Next: invoices', description: agency
+      ? 'What this client owes the agency and how much of it is past due. Invoices are generated and issued on the agency Billing page.'
+      : 'What you owe the agency and how much of it is past due.', tab: 'invoices' },
+    { element: '[data-tour="svc-invoices"]', title: 'Invoices', description: 'Every issued invoice with its number, issuing entity, service month, dates, total, payments and status. Download the PDF for your records.' },
+    { title: 'What to do next', description: agency
+      ? 'Keep the countdown green: lock attendance at T-5, generate at T-3 and chase the client\'s approval at T-2. Mark filings as filed with their references and answer the client\'s requests within SLA. The agency portfolio and calendar show the same dates across every client.'
+      : 'Send inputs before T-7, approve the payroll register in Payroll as soon as it is ready, and raise a request for anything you need from the agency. Your filings and invoices are always up to date here.' },
+  ];
+}
 
 /* ------------------------------------------------------------------ */
 /* Page                                                                */
@@ -91,7 +116,7 @@ export default function Services() {
   const { counts } = useCounts();
   const [params, setParams] = useSearchParams();
   const tab: Tab = TABS.includes(params.get('tab') as Tab) ? (params.get('tab') as Tab) : 'calendar';
-  usePageTour('Agency services', TOURS[tab]);
+  usePageTour('Agency services', servicesTour(isAgency));
   const setTab = (k: string) => setParams(k === 'calendar' ? {} : { tab: k }, { replace: true });
   const companyName = companyRef?.name || company?.name || 'this company';
 
@@ -192,7 +217,7 @@ function PayrollCalendarTab() {
             </div>
           )}
         </div>
-        <div className="svc-period-facts">
+        <div className="svc-period-facts" data-tour="svc-period-facts">
           <Stat label="Period" value={periodTitle(c.period)} icon="calendar" color="var(--brand)" hint={c.locked ? 'Attendance locked' : 'Attendance open'} />
           <Stat label="Pay date" value={fmtDate(c.pay_date)} icon="banknote" color="var(--accent)" hint={c.stage} />
           <Stat label="Net pay" value={c.run?.net != null ? fmtMoney(c.run.net, currency) : '—'} icon="wallet" color="var(--info)" hint={c.run ? `${c.run.payslips} payslips · run ${c.run.status}` : 'Run not started'} />

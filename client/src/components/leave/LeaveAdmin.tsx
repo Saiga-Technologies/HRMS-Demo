@@ -17,7 +17,7 @@ export function BalancesMatrix() {
   const rows = (data.data?.rows || []).filter((r) => !q || `${r.employee.first_name} ${r.employee.last_name} ${r.employee.employee_code}`.toLowerCase().includes(q.toLowerCase()));
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="leave-balances-toolbar">
         <Input type="number" min={2000} max={2100} value={year} onChange={(e) => setYear(Number(e.target.value) || year)} style={{ width: 110 }} aria-label="Year" data-testid="balances-year" />
         <Input type="search" placeholder="Search employee…" value={q} onChange={(e) => setQ(e.target.value)} className="search" />
         <span className="muted">Each cell shows <strong>available</strong> / used. Click a cell to adjust.</span>
@@ -112,7 +112,7 @@ export function LeaveTypesTab({ types, loading, reload }: { types: LeaveType[]; 
       {dialog}
       <div className="toolbar">
         <span className="muted">Creating a type gives every active employee a balance for this year.</span>
-        <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEdit({ paid: 1, allow_half_day: 1, active: 1, color: '#2563eb', annual_quota: 12 })} data-testid="leavetype-add">+ Add leave type</Button>
+        <Button variant="primary" style={{ marginLeft: 'auto' }} onClick={() => setEdit({ paid: 1, allow_half_day: 1, active: 1, color: '#2563eb', annual_quota: 12 })} data-testid="leavetype-add" data-tour="leave-type-add">+ Add leave type</Button>
       </div>
       <Card padded={false} tour="leave-types">
         <Table<LeaveType>

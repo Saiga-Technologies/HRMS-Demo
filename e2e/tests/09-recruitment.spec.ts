@@ -8,7 +8,7 @@ test.describe('recruitment', () => {
   test('HR uploads a CV, sees the score, moves the candidate to interview, hires them and lands on the new employee profile', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/recruitment');
-    await runTour(page);
+    await runTour(page, { minSteps: 15 });
 
     // Seeded pipeline is visible with scored cards.
     await expect(page.getByTestId('pipeline-board')).toBeVisible();

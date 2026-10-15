@@ -9,7 +9,7 @@ test.describe('HR letters', () => {
     await expect(page.getByRole('heading', { name: 'HR letters' })).toBeVisible();
     await expect(page.getByTestId('letter-issue')).toHaveCount(0);
     await expect(page.getByTestId('tab-requests')).toHaveCount(0);
-    await runTour(page);
+    await runTour(page, { minSteps: 4 });
 
     await page.getByTestId('letter-request').click();
     const modal = page.getByTestId('letter-modal');
@@ -32,7 +32,7 @@ test.describe('HR letters', () => {
     // HR: tour, queue badge, approve and generate.
     await login(page, USERS.hr);
     await page.goto('/letters');
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
     await expect(page.getByTestId('tab-requests').locator('.tab-badge')).toHaveText('1');
     await page.getByTestId('tab-requests').click();
     await expect(page).toHaveURL(/tab=requests/);

@@ -33,7 +33,7 @@ export function DailyRoster({ onRaiseAppeal }: { onRaiseAppeal?: RaiseAppeal }) 
   };
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="att-roster-date">
         <Button size="sm" onClick={() => shift(-1)} aria-label="Previous day">‹</Button>
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} data-testid="roster-date" />
         <Button size="sm" onClick={() => shift(1)} aria-label="Next day">›</Button>
@@ -303,7 +303,7 @@ export function MonthlySummary() {
   const data = useFetch<{ period: string; working_days: number; rows: SummaryRow[] }>(() => api.get(`/api/attendance/summary${qs({ period })}`), [period]);
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="att-summary-month">
         <Input type="month" value={period} onChange={(e) => e.target.value && setPeriod(e.target.value)} data-testid="summary-month" />
         {data.data ? <span className="muted">{data.data.working_days} working days in {fmtDate(period + '-01', { month: 'long', year: 'numeric' })}</span> : null}
       </div>

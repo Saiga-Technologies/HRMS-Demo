@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtMoney } from '../lib/format';
 import { Button, Card, Field, Input, KeyValue, PageHeader, Select, Spinner, useFetch, useToast } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -41,11 +41,26 @@ const EMPTY = {
 };
 type FormState = typeof EMPTY;
 
-const TOUR = [
-  { element: '[data-tour="nc-steps"]', title: 'Five steps', description: 'Company details, country and payroll calendar, the client HR admin login, billing terms, then a final review.' },
-  { element: '[data-tour="nc-form"]', title: 'Fill in each step', description: 'Required fields are marked. Next checks this step before moving on; you can go back at any time.' },
-  { element: '[data-tour="nc-preview"]', title: 'Live preview', description: 'How the company will appear in the portfolio, with its country, currency, weekly offs and pay day.' },
-  { element: '[data-tour="nc-nav"]', title: 'Create the company', description: 'On the review step, Create sets up the company with its statutory calendar and gives you a temporary password for the client HR admin.' },
+const TOUR: TourStep[] = [
+  { title: 'Onboard a client company', description: 'Five short steps take a new client from nothing to a working company: its own database with the country\'s salary components, leave types, holidays and statutory filings, a login for the client\'s HR admin, and a billing profile. It then appears in your portfolio, calendar and billing.' },
+  { element: '[data-tour="nc-steps"]', title: 'The five steps', description: 'Your progress through the wizard. Done steps show a tick; you can click back to any earlier step. Moving forward checks each step on the way.' },
+  { element: '[data-testid="nc-step-company"]', title: '1. Company', description: 'Name, legal name, industry, logo letters and brand colour (used on portfolio cards and calendar events), and the agency account manager who looks after this client.' },
+  { element: '[data-testid="nc-step-calendar"]', title: '2. Country & calendar', description: 'The country sets currency, time zone, the statutory filings and the country template; the state or region decides things like professional tax and GST place of supply in India. Weekly offs and the pay day drive the payroll milestones.' },
+  { element: '[data-testid="nc-step-admin"]', title: '3. Client HR admin', description: 'The person who runs HR at the client. They get a login with a temporary password, approve each payroll register and raise service requests to the agency.' },
+  { element: '[data-testid="nc-step-billing"]', title: '4. Billing', description: 'How the agency bills this client: fee per employee per month, per payroll run, a minimum monthly charge, a one-off setup fee, the client\'s tax ID and payment terms. The billing entity is picked from the country.' },
+  { element: '[data-testid="nc-step-review"]', title: '5. Review', description: 'Everything on one page with an Edit link per section, and the Create company button.' },
+  { element: '[data-tour="nc-form"]', title: 'The current step', description: 'Fill in this step\'s fields; required ones are marked with an asterisk. Errors appear under the field when you press Next.' },
+  { element: '[data-testid="nc-name"]', title: 'Company name', description: 'The only required field on this step. The legal name defaults to it, and the logo letters to its first letter.' },
+  { element: '[data-testid="nc-am"]', title: 'Account manager', description: 'Who owns the client relationship. Account managers who add a company are assigned to it automatically; owners and admins can pick anyone and change it later from the portfolio.' },
+  { element: '[data-testid="nc-country"]', title: 'Country', description: 'India, UAE, Saudi Arabia, Qatar or the US. Changing it resets the region and the usual weekly offs for that country.' },
+  { element: '[data-testid="nc-weekly-offs"]', title: 'Weekly offs', description: 'Click days to toggle them (one to three). They decide working days, so they move pay day and every payroll milestone.' },
+  { element: '.nc-payday', title: 'Pay day', description: 'A fixed day (1–28, moved earlier when it falls on an off day or holiday) or the last working day. Milestones count back from it in working days: inputs T-7, attendance cut-off T-5, generation T-3, client approval T-2.' },
+  { element: '[data-testid="nc-admin-email"]', title: 'Admin login email', description: 'They sign in with this email. The temporary password is shown once after you create the company.' },
+  { element: '[data-testid="nc-pepm"]', title: 'Fees', description: 'Amounts in the company\'s currency; leave blank for none. Monthly invoices are generated from these in Billing, and you can change them later on the Pricing tab.' },
+  { element: '[data-testid="nc-review"]', title: 'Check before you create', description: 'Use Edit on any section to go back and change it.' },
+  { element: '[data-tour="nc-preview"]', title: 'Live preview', description: 'How the company will look in the portfolio as you type: country, currency, weekly offs, pay day and manager. New companies start in Onboarding with client approval of payroll switched on.' },
+  { element: '[data-tour="nc-nav"]', title: 'Next, Back and Create', description: 'Next checks this step and moves on; Back keeps what you typed. On the review step, Create company sets everything up.' },
+  { title: 'What happens next', description: 'You get the client HR admin\'s email and a temporary password to share securely (shown only once). Then open the company to add employees and salary structures, check its compliance calendar, and assign a payroll specialist to it on the Agency team page.' },
 ];
 
 export default function NewCompany() {

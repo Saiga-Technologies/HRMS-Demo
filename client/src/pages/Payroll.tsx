@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate, fmtDateTime, fmtMoney, label, monthIso } from '../lib/format';
 import { useCounts } from '../lib/notifications';
 import { Icon } from '../components/Icons';
@@ -36,23 +36,43 @@ const ADJ_TYPES = ['bonus', 'reimbursement', 'overtime', 'deduction', 'advance',
 const ADJ_EARNING = new Set(['bonus', 'reimbursement', 'overtime', 'arrears']);
 const SPECIAL_CODES: Record<string, string> = { PF: 'Provident fund — employee % of basic (capped at the PF wage ceiling)', ESI: 'ESI — % of gross when gross is within the ESI ceiling', PT: 'Professional tax — flat monthly amount above the threshold', TDS: 'Income tax — monthly share of annual tax from the TDS slabs' };
 
-const HR_TOUR = [
-  { element: '[data-tour="payroll-tabs"]', title: 'Payroll areas', description: 'Overview, pay runs, salary components, one-off adjustments and statutory settings each have a tab.' },
-  { element: '[data-tour="payroll-stats"]', title: 'Coverage at a glance', description: 'How many active employees have a salary structure. Employees without one are skipped when a run is processed.' },
-  { element: '[data-tour="payroll-recent"]', title: 'Recent runs', description: 'Click a run to open it: process, approve, mark paid and view or edit individual payslips.' },
-  { element: '[data-tour="payroll-new-run"]', title: 'Start a pay run', description: 'Create one run per month. Processing generates a payslip for every employee with a salary structure.' },
-  { element: '[data-tour="payroll-runs"]', title: 'Run workflow', description: 'Draft → Processed → Approved → Paid. Payslips are released to employees once a run is approved.' },
-  { element: '[data-tour="payroll-components"]', title: 'Salary components', description: 'Earnings and deductions applied to every structure. PF, ESI, PT and TDS are computed from the Settings tab.' },
-  { element: '[data-tour="payroll-adjustments"]', title: 'Adjustments', description: 'Bonuses, reimbursements, overtime, advances and recoveries for a specific month are picked up when that month is processed.' },
-  { element: '[data-tour="payroll-requests"]', title: 'Payslip requests', description: 'Employees can apply for a payslip. Fulfil a request to attach the released payslip, or reject it with a note.' },
-  { element: '[data-tour="payroll-settings"]', title: 'Statutory settings', description: 'Currency, pay day, PF/ESI/PT rates and the TDS slab table used by every run.' },
+/** Opens the first run in the list so the tour can walk through a run's lifecycle. */
+const OPEN_FIRST_RUN = '[data-tour="payroll-run-list"] tbody tr.clickable';
+const HR_TOUR: TourStep[] = [
+  { title: 'Payroll, step by step', description: 'Payroll is set up once and then run every month. You will go through: 1) who is covered, 2) salary components and structures, 3) one-off adjustments, 4) the monthly run: draft, process, review, approve and mark paid, 5) payslip requests from employees, and 6) the statutory settings behind every calculation.' },
+  { tab: 'overview', element: '[data-tour="payroll-tabs"]', title: 'Payroll areas', description: 'Overview, Pay runs, Payslip requests, Salary components, Adjustments and Settings. Badges count draft runs and pending payslip requests.' },
+  { element: '[data-tour="payroll-stats"]', title: 'Who is covered', description: 'Active employees, how many have a salary structure (and are paid in a run) and how many do not. Employees without a structure are skipped when a run is processed.' },
+  { element: '[data-tour="payroll-recent"]', title: 'Recent runs', description: 'The latest pay runs with status, headcount, gross and net. Click one to open it.' },
+  { tab: 'components', element: '[data-tour="payroll-component-add"]', title: 'Salary components', description: 'Start here when setting up payroll: add the earnings (Basic, HRA, allowances) and deductions your company uses. Each is a fixed amount, a % of basic or a % of gross.' },
+  { element: '[data-tour="payroll-components"]', title: 'Component list', description: 'Earnings in green, deductions in red, with taxable, statutory and prorate flags. PF, ESI, PT and TDS are calculated from the Settings tab. Click a row to edit it or switch it off.' },
+  { tab: 'overview', element: '[data-tour="payroll-structures"]', title: 'Salary structures', description: 'Each employee’s structure picks the components and amounts that apply to them; set it up on the employee’s profile (the link takes you to Employees). This count should be zero before you run payroll.' },
+  { tab: 'adjustments', element: '[data-tour="payroll-adj-filters"]', title: 'One-off adjustments', description: 'Filter adjustments by month and employee. The net effect on the right shows how much they add to or take off the payroll.' },
+  { element: '[data-tour="payroll-adj-add"]', title: 'Add an adjustment', description: 'Add a bonus, reimbursement, overtime, arrears, deduction, advance or loan recovery for one employee and month. Only months whose run is still a draft (or not created yet) can take adjustments.' },
+  { element: '[data-tour="payroll-adjustments"]', title: 'Adjustment list', description: 'Every adjustment with its type, amount and note; the note becomes the line name on the payslip. They are picked up when that month’s run is processed.' },
+  { tab: 'runs', element: '[data-tour="payroll-new-run"]', title: 'Start a pay run', description: 'Create one run per month. It starts as a draft, so you can still add adjustments before processing.' },
+  { element: '[data-tour="payroll-run-list"]', title: 'Pay runs', description: 'Every run moves Draft → Processed → Approved → Paid. Click a run to work on it; the tour opens the latest one next.' },
+  { tab: OPEN_FIRST_RUN, element: '[data-tour="payroll-run-head"]', title: 'Inside a run', description: 'The month, its status and the number of working days used for proration. Use All runs to go back to the list.' },
+  { tab: 'runs', element: '[data-tour="payroll-run-actions"]', title: 'Move the run forward', description: 'Draft: Process generates a payslip for everyone with a salary structure, using attendance and leave for loss-of-pay. Processed: review, then Approve to release payslips to employees (or Back to draft). In agency-managed companies the client’s HR approves instead. Approved: Mark paid locks the run. Delete is available until it is paid.' },
+  { element: '[data-tour="payroll-run-totals"]', title: 'Run totals', description: 'Headcount (and how many were skipped), gross, deductions and net payable, with the date the run was processed, approved or paid.' },
+  { element: '[data-tour="payroll-run-skipped"]', title: 'Skipped employees', description: 'Shown right after processing: who was left out and why, usually a missing salary structure. Fix it and process again.' },
+  { element: '[data-tour="payroll-run-payslips"]', title: 'Review payslips', description: 'One payslip per employee with paid and LOP days, gross, deductions and net. View opens the full payslip; while the run is draft or processed, Edit lets you override lines for that person. Payslips lock once the run is approved.' },
+  { tab: 'requests', element: '[data-tour="payroll-requests"]', title: 'Payslip requests', description: 'Employees can ask for a payslip for any month. Fulfil attaches their payslip from that month’s approved or paid run; Reject sends them a note. The Pay run column shows whether the month is ready.' },
+  { tab: 'settings', element: '[data-tour="payroll-settings-general"]', title: 'General settings', description: 'Currency, pay day, whether proration uses calendar or working days, the overtime multiplier, and whether absences and half days in attendance count as loss of pay.' },
+  { element: '[data-tour="payroll-settings-statutory"]', title: 'Statutory deductions', description: 'PF, ESI and professional tax rates, ceilings and thresholds. These drive the PF, ESI and PT components on every payslip.' },
+  { element: '[data-tour="payroll-settings-tds"]', title: 'TDS slabs', description: 'Annual income tax slabs. Monthly TDS is the annual tax divided by 12; leave the last limit empty for “and above”.' },
+  { element: '[data-tour="payroll-settings-save"]', title: 'Save settings', description: 'Changes apply to runs processed from now on. To apply them to a processed run, move it back to draft and process it again.' },
+  { title: 'What to do next', description: 'Each month: add adjustments, create the run, process, review, approve and mark paid. Make sure attendance appeals and leave approvals are settled first, because they decide loss-of-pay days. Employees see their payslips under Payroll once the run is approved.' },
 ];
-const MY_TOUR = [
-  { element: '[data-tour="payroll-my"]', title: 'Your payslips', description: 'Released payslips for each month, with gross, deductions and net pay.' },
+const MY_TOUR: TourStep[] = [
+  { title: 'Your payslips', description: 'Here you find your payslips and can ask HR for one. You will go through: 1) your released payslips, 2) opening and downloading one, and 3) requesting a payslip for a past month.' },
+  { tab: 'payslips', element: '[data-tour="payroll-my"]', title: 'My payslips', description: 'Payslips appear here once HR approves the pay run for that month.' },
   { element: '[data-tour="payroll-my-tabs"]', title: 'Payslips and requests', description: 'Switch between your released payslips and your payslip requests.' },
-  { element: '[data-tour="payroll-my-table"]', title: 'View and download', description: 'Open a payslip to see the full earnings and deductions breakdown, then download it as a PDF.' },
-  { element: '[data-tour="payroll-request-new"]', title: 'Request a payslip', description: 'Need a payslip for a past month? Pick the month, add a reason and HR will attach it once the run is approved.' },
-  { element: '[data-tour="payroll-my-help"]', title: 'Need a correction?', description: 'Payslips are locked once approved. Contact HR for any correction before the next run.' },
+  { element: '[data-tour="payroll-my-table"]', title: 'View and download', description: 'Each month shows paid and loss-of-pay days, gross, deductions and net pay. Click a row or View to see the full earnings and deductions breakdown, then Download PDF.' },
+  { element: '[data-tour="payroll-my-help"]', title: 'Something wrong?', description: 'Payslips are locked once a run is approved. Contact HR if something looks wrong; loss-of-pay comes from attendance and unpaid leave, so check those pages first.' },
+  { tab: 'requests', element: '[data-tour="payroll-request-new"]', title: 'Request a payslip', description: 'Need a payslip for a loan, visa or tax filing? Pick the month and add a reason. HR attaches it once that month’s run is approved.' },
+  { element: '[data-tour="payroll-requests"]', title: 'Track requests', description: 'Each request shows its status and who handled it. When it is fulfilled, Open payslip shows it right here.' },
+  { element: '[data-tour="payroll-my-requests-help"]', title: 'Good to know', description: 'You can have one pending request per month, and payslips are only released after HR approves that month’s run.' },
+  { title: 'What to do next', description: 'Keep your attendance and leave up to date during the month; they decide your paid and loss-of-pay days. Your payslip shows up here after HR approves the run.' },
 ];
 
 const periodLabel = (p: string) => fmtPeriod(p);
@@ -143,7 +163,7 @@ function MyPayslipRequests({ currency, onOpenPayslip }: { currency: string; onOp
           ]}
         />
       </Card>
-      <p className="help">One pending request per month. Payslips are released only after HR approves the pay run for that month. Currency: {currency}.</p>
+      <p className="help" data-tour="payroll-my-requests-help">One pending request per month. Payslips are released only after HR approves the pay run for that month. Currency: {currency}.</p>
       {open ? <PayslipRequestModal onClose={() => setOpen(false)} onCreated={() => { setOpen(false); list.reload(); refreshCounts(); toast.success('Payslip requested'); }} /> : null}
     </>
   );
@@ -321,7 +341,7 @@ function OverviewTab({ currency, onOpenRun }: { currency: string; onOpenRun: (id
       <div className="grid grid-3 mb" data-tour="payroll-stats">
         <Stat label="Active employees" value={s ? s.activeEmployees : '…'} hint="Not exited" />
         <Stat label="With salary structure" value={s ? s.withStructure : '…'} color="#16a34a" hint="Included in pay runs" />
-        <Stat label="Without structure" value={s ? s.withoutStructure : '…'} color={s && s.withoutStructure > 0 ? '#ca8a04' : undefined} hint={<Link to="/employees">Set up salary structures in Employees →</Link>} />
+        <Stat tour="payroll-structures" label="Without structure" value={s ? s.withoutStructure : '…'} color={s && s.withoutStructure > 0 ? '#ca8a04' : undefined} hint={<Link to="/employees">Set up salary structures in Employees →</Link>} />
       </div>
       <Card title="Recent runs" padded={false} tour="payroll-recent">
         <RunsTable rows={s?.recentRuns || []} loading={summary.loading} currency={currency} onOpen={onOpenRun} />
@@ -354,7 +374,7 @@ function RunsTable({ rows, loading, currency, onOpen, tour }: { rows: PayRun[]; 
 function RunsTab({ currency, onOpenRun, onNew }: { currency: string; onOpenRun: (id: number) => void; onNew: () => void }) {
   const runs = useFetch<PayRun[]>(() => api.get('/api/payroll/runs'), []);
   return (
-    <Card title="Pay runs" padded={false} tour="payroll-runs" actions={<Button size="sm" onClick={onNew}>+ New run</Button>}>
+    <Card title="Pay runs" padded={false} tour="payroll-run-list" actions={<Button size="sm" onClick={onNew}>+ New run</Button>}>
       <RunsTable rows={runs.data || []} loading={runs.loading} currency={currency} onOpen={onOpenRun} />
     </Card>
   );
@@ -440,13 +460,13 @@ function RunDetail({ id, currency, onBack }: { id: number; currency: string; onB
     <div data-tour="payroll-runs">
       {dialog}
       <div className="row between mb">
-        <div className="row">
+        <div className="row" data-tour="payroll-run-head">
           <Button size="sm" onClick={onBack}>← All runs</Button>
           <h2 style={{ fontSize: 18 }}>{periodLabel(r.period)}</h2>
           <StatusBadge status={r.status} label={label(r.status)} />
           <span className="muted">{r.working_days} working days · created {fmtDateTime(r.created_at)}</span>
         </div>
-        <div className="row" data-testid="payroll-run-actions">
+        <div className="row" data-testid="payroll-run-actions" data-tour="payroll-run-actions">
           {r.status === 'draft' ? <Button variant="primary" loading={busy === 'process'} onClick={process} data-testid="payroll-process">Process</Button> : null}
           {r.status === 'processed' ? (
             <>
@@ -476,7 +496,7 @@ function RunDetail({ id, currency, onBack }: { id: number; currency: string; onB
       </div>
 
       {skipped.length ? (
-        <Card title={`Skipped (${skipped.length})`} className="mb">
+        <Card title={`Skipped (${skipped.length})`} className="mb" tour="payroll-run-skipped">
           <ul className="list">
             {skipped.map((s) => (
               <li key={s.employee_id}><span><Link to={`/employees/${s.employee_id}`}>{s.name}</Link></span><span className="meta">{s.reason}</span></li>
@@ -485,7 +505,7 @@ function RunDetail({ id, currency, onBack }: { id: number; currency: string; onB
         </Card>
       ) : null}
 
-      <Card title={`Payslips (${r.payslips.length})`} padded={false} actions={<input className="input search" type="search" placeholder="Filter employees…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter payslips" />}>
+      <Card title={`Payslips (${r.payslips.length})`} padded={false} tour="payroll-run-payslips" actions={<input className="input search" type="search" placeholder="Filter employees…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter payslips" />}>
         <Table<RunPayslip>
           rows={slips}
           loading={run.loading}
@@ -606,7 +626,7 @@ function ComponentsTab({ settings }: { settings: PayrollSettings | null }) {
       <div className="alert alert-info mb">
         Components with the special codes <code>PF</code>, <code>ESI</code>, <code>PT</code> and <code>TDS</code> ignore their default value and are computed from the rates and slabs in the <strong>Settings</strong> tab.
       </div>
-      <Card title="Salary components" padded={false} tour="payroll-components" actions={<Button variant="primary" size="sm" onClick={() => setEdit({ type: 'earning', calc_type: 'fixed', default_value: 0, taxable: 1, statutory: 0, prorate: 1, active: 1, sort_order: (comps.data?.length || 0) + 1 })} data-testid="component-add">+ Add component</Button>}>
+      <Card title="Salary components" padded={false} tour="payroll-components" actions={<Button variant="primary" size="sm" onClick={() => setEdit({ type: 'earning', calc_type: 'fixed', default_value: 0, taxable: 1, statutory: 0, prorate: 1, active: 1, sort_order: (comps.data?.length || 0) + 1 })} data-testid="component-add" data-tour="payroll-component-add">+ Add component</Button>}>
         <Table<Component>
           loading={comps.loading}
           rows={comps.data || []}
@@ -710,7 +730,7 @@ function AdjustmentsTab({ currency }: { currency: string }) {
   return (
     <>
       {dialog}
-      <div className="toolbar">
+      <div className="toolbar" data-tour="payroll-adj-filters">
         <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="Period" data-testid="adjustment-period-filter" />
         <Select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} aria-label="Employee">
           <option value="">All employees</option>
@@ -718,7 +738,7 @@ function AdjustmentsTab({ currency }: { currency: string }) {
         </Select>
         {period ? <Button size="sm" variant="ghost" onClick={() => setPeriod('')}>All periods</Button> : null}
         <span className="muted" style={{ marginLeft: 'auto' }}>Net effect: <strong className="num">{total >= 0 ? '+' : '−'}{fmtMoney(Math.abs(total), currency)}</strong></span>
-        <Button variant="primary" onClick={() => setAdd(true)} data-testid="adjustment-add">+ Add adjustment</Button>
+        <Button variant="primary" onClick={() => setAdd(true)} data-testid="adjustment-add" data-tour="payroll-adj-add">+ Add adjustment</Button>
       </div>
       <Card padded={false} tour="payroll-adjustments">
         <Table<Adjustment>
@@ -838,7 +858,7 @@ function SettingsTab({ settings, loading, onSaved }: { settings: PayrollSettings
   return (
     <form onSubmit={save} data-tour="payroll-settings">
       <div className="grid grid-2">
-        <Card title="General">
+        <Card title="General" tour="payroll-settings-general">
           <div className="form-grid">
             <Field label="Currency (ISO code)" hint="Used for all payroll amounts."><Input value={form.currency || ''} onChange={(e) => set('currency', e.target.value)} maxLength={3} style={{ textTransform: 'uppercase' }} data-testid="payroll-currency" /></Field>
             <Field label="Pay day (day of month)"><Input type="number" min={1} max={31} value={form.pay_day} onChange={(e) => set('pay_day', e.target.value)} /></Field>
@@ -852,7 +872,7 @@ function SettingsTab({ settings, loading, onSaved }: { settings: PayrollSettings
             </div>
           </div>
         </Card>
-        <Card title="Statutory deductions">
+        <Card title="Statutory deductions" tour="payroll-settings-statutory">
           <div className="form-grid">
             {NUM_FIELDS.filter((f) => !['pay_day', 'overtime_multiplier'].includes(f.key)).map((f) => (
               <Field key={f.key} label={f.label} hint={f.hint}><Input type="number" step={f.step || '1'} min={0} value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} data-testid={`payroll-${f.key}`} /></Field>
@@ -860,7 +880,7 @@ function SettingsTab({ settings, loading, onSaved }: { settings: PayrollSettings
           </div>
         </Card>
       </div>
-      <Card title="TDS slabs (annual taxable income)" actions={<Button size="sm" type="button" onClick={() => set('tds_slabs', [...form.tds_slabs, { upto: '', percent: '' }])}>+ Add slab</Button>}>
+      <Card title="TDS slabs (annual taxable income)" tour="payroll-settings-tds" actions={<Button size="sm" type="button" onClick={() => set('tds_slabs', [...form.tds_slabs, { upto: '', percent: '' }])}>+ Add slab</Button>}>
         <table className="table dense" data-testid="tds-slabs">
           <thead><tr><th>From</th><th>Up to (annual income)</th><th style={{ width: 140 }}>Tax %</th><th style={{ width: 40 }} /></tr></thead>
           <tbody>
@@ -881,7 +901,7 @@ function SettingsTab({ settings, loading, onSaved }: { settings: PayrollSettings
         </table>
         <p className="help mt">Leave the last slab's limit empty to mean "and above". Monthly TDS is the annual tax divided by 12.</p>
       </Card>
-      <div className="sticky-actions">
+      <div className="sticky-actions" data-tour="payroll-settings-save">
         <Button type="button" onClick={() => settings && setForm(toDraft(settings))}>Reset</Button>
         <Button variant="primary" type="submit" loading={busy} data-testid="payroll-settings-save">Save settings</Button>
       </div>

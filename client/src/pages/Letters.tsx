@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useCounts } from '../lib/notifications';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { Button, PageHeader, Tabs, useFetch } from '../components/ui';
 import { Icon } from '../components/Icons';
 import { DirectoryEmployee, Letter, LetterTemplate } from '../components/letters/shared';
@@ -13,14 +13,28 @@ import { LetterRequests } from '../components/letters/LetterRequests';
 import { AllLetters } from '../components/letters/AllLetters';
 import { LetterTemplates } from '../components/letters/LetterTemplates';
 
-const TOUR = [
-  { element: '[data-tour="letters-request-btn"]', title: 'Request a letter', description: 'Ask for an experience, salary, address proof or no objection letter. Fill in the purpose, preview the wording with your own details, and send it to HR.' },
-  { element: '[data-tour="letters-issue-btn"]', title: 'Issue a letter', description: 'HR can issue any template (offer, appointment, relieving and more) to any employee, fill in extra details and generate the PDF in one step.' },
-  { element: '[data-tour="letters-tabs"]', title: 'Views', description: 'My letters lists your own letters. HR also sees the request queue (the red badge counts requests waiting for approval), every letter issued, and the templates.' },
-  { element: '[data-tour="letters-mine"]', title: 'Your letters', description: 'Track each request from approval to PDF. Ready letters can be downloaded here and are also filed in your documents. Click a row for details and HR notes.' },
-  { element: '[data-tour="letters-requests"]', title: 'Request queue', description: 'Approve, reject with a note, or approve and generate the PDF straight away. Approved letters waiting for their PDF stay here until generated.' },
-  { element: '[data-tour="letters-all"]', title: 'All letters', description: 'Every letter with its reference number. Filter by status or type, regenerate a PDF after fixing employee data, or delete a letter.' },
-  { element: '[data-tour="letters-templates"]', title: 'Templates', description: 'Write templates with placeholders like {{employee.full_name}} or {{var.purpose}}, choose whether employees can request them and whether HR must approve, and preview with real employee data.' },
+// The employee view has no tab bar, so "My letters" steps also match the card itself (clicking it is harmless).
+const MINE_TAB = '[data-tab="mine"], [data-tour="letters-mine"]';
+const TOUR: TourStep[] = [
+  { title: 'HR letters', description: 'Official letters as PDFs, generated from templates with each employee’s own data. The flow: 1) an employee requests a letter (or HR issues one), 2) HR approves it, 3) the PDF is generated, 4) the employee downloads it — it is also filed in their Documents.' },
+  { element: '[data-tour="letters-request-btn"]', title: 'Request a letter', description: 'Opens the request form: pick a self-service letter (experience, salary, address proof, no objection…), fill in any extra details such as the purpose, preview the wording with your own data, and send it. Letters that need approval go to HR’s queue.' },
+  { element: '[data-tour="letters-issue-btn"]', title: 'Issue a letter', description: 'HR can issue any active template — including offer, appointment and relieving letters — to any employee. Fill in the extra details, preview, and leave “Generate the PDF now” ticked to produce it in one step.' },
+  { element: '[data-tour="letters-tabs"]', title: 'Views', description: 'My letters are your own. HR also gets the Requests queue (the red badge counts requests waiting), All letters and Templates.' },
+  { element: '[data-tour="letters-mine"]', title: 'Your letters', tab: MINE_TAB, description: 'Every letter for you with its reference number, the date it was requested and any note from HR. The header counts how many are ready and how many are in progress. Click a row for the details.' },
+  { element: '[data-tour="letters-my-status"]', title: 'Where it stands', description: 'Awaiting approval: HR has not decided yet. Approved, not generated: HR is preparing the PDF. Ready: download it. Rejected: see the note from HR.' },
+  { element: '[data-tour="letters-my-download"]', title: 'Download the PDF', description: 'Ready letters download straight from here. The same PDF is filed in your documents.' },
+  { element: '[data-tour="letters-requests"]', title: 'Next: the request queue', tab: 'requests', description: 'Self-service requests that need approval, plus approved letters still waiting for their PDF. Each card shows who asked, the letter, the details they filled in and their reason.' },
+  { element: '[data-tour="letters-request-note"]', title: 'Note to the employee', description: 'Optional. It is saved on the letter and shown to the employee in their list — useful when rejecting or explaining a delay.' },
+  { element: '[data-tour="letters-request-actions"]', title: 'Decide', description: 'Reject, Approve (generate later), or Approve and generate the PDF in one click. An approved letter stays here with a Generate PDF button until its PDF exists. If some employee fields are blank you will be told which.' },
+  { element: '[data-tour="letters-filters"]', title: 'Next: all letters', tab: 'all', description: 'Every letter in the company. Search by employee, letter or reference number, and filter by status or letter type.' },
+  { element: '[data-tour="letters-all"]', title: 'Letter register', description: 'Reference, employee, letter, status, who requested it and when. Click a row to read the rendered letter.' },
+  { element: '[data-tour="letters-row-actions"]', title: 'Row actions', description: 'Download the PDF, generate it (or regenerate after fixing employee data), reject a pending one, or delete a letter — deleting also removes its PDF from the employee’s documents.' },
+  { element: '[data-tour="letters-template-add"]', title: 'Next: templates', tab: 'templates', description: 'Templates are the wording behind every letter. New template opens the editor with a list of placeholders such as {{employee.full_name}} or {{employee.position}} that you click to insert; use {{var.name}} for details asked when the letter is requested.' },
+  { element: '[data-tour="letters-templates"]', title: 'Template list', description: 'Each template with its code, category and subject. Click a row to edit it; switch Active off to stop it being used.' },
+  { element: '[data-tour="letters-tpl-access"]', title: 'Who can request it', description: 'Self-service templates appear in employees’ Request form; HR only ones can just be issued by HR. For self-service ones, Approval says whether HR must approve before generating.' },
+  { element: '[data-tour="letters-tpl-vars"]', title: 'Extra details', description: 'The {{var.…}} fields found in the template body. The request and issue forms ask for these, for example the purpose of a salary certificate.' },
+  { element: '[data-tour="letters-tpl-actions"]', title: 'Preview, edit, delete', description: 'Preview renders the template with a real employee’s data so you can check the wording and spot blank fields before anyone uses it.' },
+  { title: 'What to do next', description: 'Generated letters land in the employee’s Documents, so employees can download them there too. HR: issue offer and appointment letters right after hiring in Recruitment, and relieving or experience letters at exit. Keep employee data complete so placeholders never come out blank.' },
 ];
 
 type TabKey = 'mine' | 'requests' | 'all' | 'templates';

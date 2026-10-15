@@ -10,7 +10,7 @@ test.describe('public careers page', () => {
     await expect(page.getByRole('heading', { level: 1 })).toContainText('Join');
     const cards = page.getByTestId('job-card');
     await expect(cards.first()).toBeVisible();
-    await runTour(page);
+    await runTour(page, { minSteps: 6 });
 
     // Earlier specs may fill a seeded vacancy, so search for whichever role is listed first.
     const title = (await cards.first().locator('.careers-card-title').textContent())!.trim();
@@ -21,7 +21,7 @@ test.describe('public careers page', () => {
     await page.getByPlaceholder('Search roles or skills…').fill(title);
     await cards.first().click();
     await expect(page.getByTestId('job-title')).toHaveText(title);
-    await runTour(page);
+    await runTour(page, { minSteps: 8 });
 
     // Missing CV is caught before sending.
     const form = page.getByTestId('apply-form');

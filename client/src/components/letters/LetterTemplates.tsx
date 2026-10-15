@@ -37,7 +37,7 @@ export function LetterTemplates({ templates, loading, employees, onChanged }: { 
 
   return (
     <>
-      <Card padded={false} tour="letters-templates" title="Letter templates" actions={<Button variant="primary" size="sm" onClick={() => setEditing('new')} data-testid="template-add"><Icon name="plus" size={14} /> New template</Button>}>
+      <Card padded={false} tour="letters-templates" title="Letter templates" actions={<Button variant="primary" size="sm" onClick={() => setEditing('new')} data-testid="template-add" data-tour="letters-template-add"><Icon name="plus" size={14} /> New template</Button>}>
         <Table<LetterTemplate>
           loading={loading && !templates.length}
           rows={templates}
@@ -46,14 +46,14 @@ export function LetterTemplates({ templates, loading, employees, onChanged }: { 
           columns={[
             { key: 'name', header: 'Template', render: (t) => <span data-testid="template-row"><strong>{t.name}</strong> <span className="muted mono">{t.code}</span><div className="muted">{t.subject}</div></span> },
             { key: 'category', header: 'Category', render: (t) => humanize(t.category) },
-            { key: 'self_service', header: 'Employees can request', render: (t) => t.self_service ? <Badge tone="success">Self-service</Badge> : <Badge>HR only</Badge> },
+            { key: 'self_service', header: 'Employees can request', render: (t) => <span data-tour="letters-tpl-access">{t.self_service ? <Badge tone="success">Self-service</Badge> : <Badge>HR only</Badge>}</span> },
             { key: 'requires_approval', header: 'Approval', render: (t) => t.self_service ? (t.requires_approval ? 'Required' : 'Not required') : <span className="muted">—</span> },
-            { key: 'variables', header: 'Extra details', render: (t) => t.variables.length ? <span className="chip-list">{t.variables.map((v) => <span key={v} className="chip mono">{v}</span>)}</span> : <span className="muted">None</span> },
+            { key: 'variables', header: 'Extra details', render: (t) => t.variables.length ? <span className="chip-list" data-tour="letters-tpl-vars">{t.variables.map((v) => <span key={v} className="chip mono">{v}</span>)}</span> : <span className="muted">None</span> },
             { key: 'active', header: 'Active', render: (t) => <span onClick={(e) => e.stopPropagation()}><Switch checked={!!t.active} onChange={() => toggleActive(t)} /></span> },
             { key: 'updated_at', header: 'Updated', render: (t) => fmtDate(t.updated_at) },
             {
               key: 'actions', header: '', align: 'right', render: (t) => (
-                <div className="row end" style={{ gap: 4, flexWrap: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                <div className="row end" style={{ gap: 4, flexWrap: 'nowrap' }} onClick={(e) => e.stopPropagation()} data-tour="letters-tpl-actions">
                   <Button size="sm" variant="ghost" title="Preview" aria-label="Preview" data-testid="template-preview" onClick={() => setPreviewing(t)}><Icon name="eye" size={15} /></Button>
                   <Button size="sm" variant="ghost" title="Edit" aria-label="Edit" onClick={() => setEditing(t)}><Icon name="edit" size={15} /></Button>
                   <Button size="sm" variant="ghost" title="Delete" aria-label="Delete" data-testid="template-delete" onClick={() => remove(t)}><Icon name="trash" size={15} /></Button>
