@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SCHEMA, SCHEMA_V2, COLUMN_MIGRATIONS } from './schema.js';
+import { AGENCY_SCHEMA } from './agency_schema.js';
+import { currentTenant } from './context.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // On Vercel (and other serverless hosts) only /tmp is writable, so the demo database and uploads
@@ -12,20 +14,74 @@ export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
 export type Row = Record<string, any>;
 
-let db: DatabaseSync | null = null;
+/* ------------------------------------------------------------------ */
+/* Databases: one per client company + one for the agency              */
+/* ------------------------------------------------------------------ */
+/** The company used when a request has no company context (single-company installs, tests, public pages). */
+export const DEFAULT_COMPANY_SLUG = process.env.HRMS_DEFAULT_COMPANY || 'acme';
+export const COMPANY_DIR = path.join(DATA_DIR, 'companies');
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,40}$/;
 
-export function getDb(): DatabaseSync {
-  if (db) return db;
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  const file = process.env.HRMS_DB_FILE || path.join(DATA_DIR, 'hrms.sqlite');
-  db = new DatabaseSync(file);
-  db.exec(SCHEMA);
-  db.exec(SCHEMA_V2);
-  migrateColumns(db);
-  migratePalette(db);
-  return db;
+const companyDbs = new Map<string, DatabaseSync>();
+let agencyDbHandle: DatabaseSync | null = null;
+let companyInitializer: ((slug: string) => void) | null = null;
+/** Seeding hook, registered by seed.ts: fills a company database the first time it is opened empty. */
+export function registerCompanyInitializer(fn: (slug: string) => void) {
+  companyInitializer = fn;
 }
+
+function companyFile(slug: string) {
+  // The default company keeps the historical single-database location (and HRMS_DB_FILE in tests).
+  if (slug === DEFAULT_COMPANY_SLUG) {
+    if (process.env.HRMS_DB_FILE) return process.env.HRMS_DB_FILE;
+    const legacy = path.join(DATA_DIR, 'hrms.sqlite');
+    const target = path.join(COMPANY_DIR, `${slug}.sqlite`);
+    if (fs.existsSync(legacy) && !fs.existsSync(target)) {
+      fs.mkdirSync(COMPANY_DIR, { recursive: true });
+      fs.renameSync(legacy, target);
+    }
+    return target;
+  }
+  return path.join(COMPANY_DIR, `${slug}.sqlite`);
+}
+
+/** Open (creating and migrating if needed) the database of company `slug`. */
+export function companyDb(slug: string): DatabaseSync {
+  const open = companyDbs.get(slug);
+  if (open) return open;
+  if (!SLUG_RE.test(slug)) throw new Error(`Invalid company slug: ${slug}`);
+  fs.mkdirSync(COMPANY_DIR, { recursive: true });
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  const d = new DatabaseSync(companyFile(slug));
+  d.exec('PRAGMA journal_mode = WAL');
+  d.exec(SCHEMA);
+  d.exec(SCHEMA_V2);
+  migrateColumns(d);
+  migratePalette(d);
+  migrateTrendCardSize(d);
+  companyDbs.set(slug, d);
+  const empty = !d.prepare('SELECT 1 FROM users LIMIT 1').get();
+  if (empty && companyInitializer && slug !== DEFAULT_COMPANY_SLUG) companyInitializer(slug);
+  return d;
+}
+
+/** The agency database: companies, agency staff, billing, login directory. */
+export function agencyDb(): DatabaseSync {
+  if (agencyDbHandle) return agencyDbHandle;
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const file = process.env.HRMS_AGENCY_DB_FILE || (process.env.HRMS_DB_FILE ? process.env.HRMS_DB_FILE.replace(/\.sqlite$/, '') + '.agency.sqlite' : path.join(DATA_DIR, 'agency.sqlite'));
+  const d = new DatabaseSync(file);
+  d.exec('PRAGMA journal_mode = WAL');
+  d.exec(AGENCY_SCHEMA);
+  agencyDbHandle = d;
+  return d;
+}
+
+/** The current request's company database (falls back to the default company). */
+export function getDb(): DatabaseSync {
+  return companyDb(currentTenant()?.slug || DEFAULT_COMPANY_SLUG);
+}
+export const currentCompanySlug = () => currentTenant()?.slug || DEFAULT_COMPANY_SLUG;
 
 /** Add columns introduced after the first release to databases created before them. */
 function migrateColumns(d: DatabaseSync) {
@@ -48,12 +104,58 @@ function migratePalette(d: DatabaseSync) {
   } catch { /* leave unparseable settings alone */ }
 }
 
-export function closeDb() {
-  if (db) {
-    db.close();
-    db = null;
+/**
+ * The attendance trend card used to default to full width. Shrink existing ones to half width once
+ * (a marker row stops it re-running, so a card a user later sets to Large stays Large).
+ */
+function migrateTrendCardSize(d: DatabaseSync) {
+  const marker = 'migration:attendance_trend_md';
+  if (d.prepare('SELECT 1 FROM settings WHERE key = ?').get(marker)) return;
+  d.exec('BEGIN');
+  try {
+    d.prepare(`UPDATE dashboard_cards SET size = 'md' WHERE size = 'lg' AND json_extract(config, '$.key') = 'attendance_trend'`).run();
+    const now = new Date().toISOString();
+    d.prepare('INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)').run(marker, JSON.stringify({ applied_at: now }), now);
+    d.exec('COMMIT');
+  } catch {
+    d.exec('ROLLBACK');
   }
 }
+
+export function closeDb() {
+  for (const d of companyDbs.values()) d.close();
+  companyDbs.clear();
+  agencyDbHandle?.close();
+  agencyDbHandle = null;
+}
+
+/** Query helpers bound to one database; `agency` is the agency database's set. */
+export function on(d: () => DatabaseSync) {
+  const runQ = (sql: string, params: any[] = []) => {
+    const r = d().prepare(sql).run(...params);
+    return { lastId: Number(r.lastInsertRowid), changes: Number(r.changes) };
+  };
+  return {
+    run: runQ,
+    all: <T = Row>(sql: string, params: any[] = []) => d().prepare(sql).all(...params) as T[],
+    get: <T = Row>(sql: string, params: any[] = []) => d().prepare(sql).get(...params) as T | undefined,
+    insert: (table: string, data: Row) => {
+      const keys = Object.keys(data);
+      return runQ(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`, keys.map((k) => normalize(data[k]))).lastId;
+    },
+    update: (table: string, id: number | string, data: Row, idColumn = 'id') => {
+      const keys = Object.keys(data);
+      if (!keys.length) return 0;
+      return runQ(`UPDATE ${table} SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE ${idColumn} = ?`, [...keys.map((k) => normalize(data[k])), id]).changes;
+    },
+    transaction: <T>(fn: () => T): T => {
+      const db = d();
+      db.exec('BEGIN');
+      try { const out = fn(); db.exec('COMMIT'); return out; } catch (e) { db.exec('ROLLBACK'); throw e; }
+    },
+  };
+}
+export const agency = on(agencyDb);
 
 /** Run a statement and return {lastInsertRowid, changes}. */
 export function run(sql: string, params: any[] = []) {
@@ -83,7 +185,14 @@ export function transaction<T>(fn: () => T): T {
 export function insert(table: string, data: Row): number {
   const keys = Object.keys(data);
   const sql = `INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`;
-  return run(sql, keys.map((k) => normalize(data[k]))).lastId;
+  const id = run(sql, keys.map((k) => normalize(data[k]))).lastId;
+  // Company logins are listed in the agency's login directory so sign-in can find the company.
+  if (table === 'users' && data.email && !data.agency_user_id) registerLogin(String(data.email), currentCompanySlug());
+  return id;
+}
+/** email → company slug, used by POST /api/auth/login. */
+export function registerLogin(email: string, slug: string) {
+  agency.run('INSERT INTO login_directory (email, company_slug) VALUES (lower(?), ?) ON CONFLICT(email, company_slug) DO NOTHING', [email, slug]);
 }
 /** Generic helper: update columns of a row by id. Returns number of changed rows. */
 export function update(table: string, id: number | string, data: Row, idColumn = 'id'): number {

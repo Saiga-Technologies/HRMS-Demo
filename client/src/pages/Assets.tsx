@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate, fmtDateTime, fmtMoney, label, todayIso } from '../lib/format';
 import { Badge, Button, Card, EmptyState, ExpiryDot, Field, Input, KeyValue, Modal, PageHeader, SearchInput, Select, Spinner, Stat, StatusBadge, Table, Textarea, useConfirm, useFetch, useForm, useToast } from '../components/ui';
 
@@ -27,18 +27,25 @@ interface SpecRow { k: string; v: string }
 const STATUSES: AssetStatus[] = ['available', 'assigned', 'maintenance', 'retired', 'lost'];
 const CONDITIONS = ['new', 'good', 'fair', 'poor', 'damaged'];
 
-const HR_TOUR = [
-  { element: '[data-tour="asset-stats"]', title: 'Inventory at a glance', description: 'Counts by status and the total purchase value of everything registered.' },
-  { element: '[data-tour="asset-add"]', title: 'Register an asset', description: 'Add laptops, phones, access cards and anything else you hand out. Tags are generated automatically.' },
-  { element: '[data-tour="asset-filters"]', title: 'Find assets', description: 'Search by tag, name, serial or model, and narrow by status or category.' },
-  { element: '[data-tour="asset-table"]', title: 'Asset register', description: 'Warranty expiry is colour-coded: red when expired, yellow within 30 days. Click a row for details, assignment history and actions.' },
-  { element: '[data-tour="asset-help"]', title: 'Assign and return', description: 'Open an asset to assign it to an employee, record its return and condition, edit or delete it.' },
+const HR_TOUR: TourStep[] = [
+  { title: 'Assets', description: 'The company equipment register. The flow: 1) register each asset, 2) assign it to an employee with its condition, 3) record the return and the condition it came back in, 4) send it to maintenance, retire it or put it back in stock. Every hand-over is kept in the asset’s history.' },
+  { element: '[data-tour="asset-stats"]', title: 'Inventory at a glance', description: 'Total assets and their purchase value, then how many are available, assigned, and in maintenance, retired or lost. Click a tile to filter the register to that status.' },
+  { element: '[data-tour="asset-add"]', title: 'Register an asset', description: 'Opens the registration form. The asset tag is generated for you (you can override it); add the category, serial, model, vendor, purchase date and cost, warranty expiry, location, condition and free-form specs such as CPU or RAM.' },
+  { element: '[data-tour="asset-search"]', title: 'Search', description: 'Find an asset by its tag, name, serial number or model.' },
+  { element: '[data-tour="asset-status-filter"]', title: 'Filter by status', description: 'Available, Assigned, Maintenance, Retired or Lost. Use Maintenance to see what is out for repair.' },
+  { element: '[data-tour="asset-category-filter"]', title: 'Filter by category', description: 'Categories come from Settings › Asset categories, plus any custom ones you typed when registering.' },
+  { element: '[data-tour="asset-table"]', title: 'Asset register', description: 'One row per asset with its tag, model and serial. Click any row to open the asset: its details, specs and the full assignment history.' },
+  { element: '[data-tour="asset-status-col"]', title: 'Status', description: 'Available assets can be assigned; Assigned ones show who has them in the next column (click the name to open their profile). Status changes automatically when you assign or record a return.' },
+  { element: '[data-tour="asset-warranty-col"]', title: 'Warranty', description: 'The warranty expiry date with a coloured dot: yellow within 30 days, red once expired. Plan renewals or replacements from here.' },
+  { element: '[data-tour="asset-help"]', title: 'Assign, return, maintain', description: 'Inside an asset: Assign (only when Available) picks the employee, an optional expected return date and the condition handed out. Return records the condition it came back in and the new status — back to stock, Maintenance, Retired or Lost. Edit changes details; Delete works once it is not assigned.' },
+  { title: 'What to do next', description: 'Assign equipment as part of onboarding in the Employee journey, and collect it back during exit. Each employee sees what they hold on their own Assets page, and overdue expected returns are flagged in red.' },
 ];
-const MY_TOUR = [
-  { element: '[data-tour="asset-mine"]', title: 'Your assets', description: 'Equipment currently issued to you, with the expected return date where one was set.' },
-  { element: '[data-tour="asset-current"]', title: 'Currently with you', description: 'Each item shows its tag, model and serial number — handy when raising a support ticket.' },
-  { element: '[data-tour="asset-past"]', title: 'Returned items', description: 'A history of assets you have returned and the condition they were recorded in.' },
-  { element: '[data-tour="asset-help"]', title: 'Something wrong?', description: 'Contact HR to report a lost or damaged item or to request a return.' },
+const MY_TOUR: TourStep[] = [
+  { title: 'My assets', description: 'Equipment the company has issued to you. HR assigns and records returns; this page shows what you hold now and what you have handed back.' },
+  { element: '[data-tour="asset-current"]', title: 'Currently with you', description: 'Each item with its tag, model and serial number (handy for support tickets), the date it was issued and the condition it was handed over in. An expected return date in red means it is overdue.' },
+  { element: '[data-tour="asset-current"] tbody tr.clickable', title: 'Open an item', description: 'Click a row to see the full details, including specifications and any notes HR added at hand-over.' },
+  { element: '[data-tour="asset-past"]', title: 'Returned items', description: 'Everything you have handed back, with the return date and the condition HR recorded.' },
+  { element: '[data-tour="asset-help"]', title: 'Something wrong?', description: 'Lost or damaged something, or need a replacement? Contact HR so they can record it against the asset.' },
 ];
 
 function useDebounced<T>(value: T, ms = 250): T {
@@ -176,12 +183,12 @@ function HrAssets() {
         <Stat label="Maintenance / retired / lost" value={(counts.maintenance ?? 0) + (counts.retired ?? 0) + (counts.lost ?? 0)} color="#ca8a04" hint={`${counts.maintenance ?? 0} in maintenance · ${counts.retired ?? 0} retired · ${counts.lost ?? 0} lost`} onClick={statStatus('maintenance')} />
       </div>
       <div className="toolbar" data-tour="asset-filters">
-        <SearchInput value={q} onChange={setQ} placeholder="Search tag, name, serial, model…" />
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status" data-testid="asset-filter-status">
+        <SearchInput value={q} onChange={setQ} placeholder="Search tag, name, serial, model…" tour="asset-search" />
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status" data-testid="asset-filter-status" data-tour="asset-status-filter">
           <option value="">All statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
         </Select>
-        <Select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category" data-testid="asset-filter-category">
+        <Select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category" data-testid="asset-filter-category" data-tour="asset-category-filter">
           <option value="">All categories</option>
           {(categories.data || []).map((c) => <option key={c} value={c}>{c}</option>)}
           {category && !(categories.data || []).includes(category) ? <option value={category}>{category}</option> : null}
@@ -200,9 +207,9 @@ function HrAssets() {
             { key: 'name', header: 'Asset', render: (a) => <strong>{a.name}</strong> },
             { key: 'category', header: 'Category' },
             { key: 'model', header: 'Model / serial', render: (a) => <span>{a.model || '—'} {a.serial_number ? <span className="muted mono">{a.serial_number}</span> : null}</span> },
-            { key: 'status', header: 'Status', render: (a) => <StatusBadge status={a.status} label={label(a.status)} /> },
+            { key: 'status', header: 'Status', render: (a) => <span data-tour="asset-status-col"><StatusBadge status={a.status} label={label(a.status)} /></span> },
             { key: 'assigned_to', header: 'Assigned to', render: (a) => (a.assigned_to ? <Link to={`/employees/${a.assigned_to}`} onClick={(e) => e.stopPropagation()}>{a.assigned_to_name} <span className="muted mono">{a.assigned_to_code}</span></Link> : <span className="muted">—</span>) },
-            { key: 'warranty_expiry', header: 'Warranty', render: (a) => <Warranty a={a} /> },
+            { key: 'warranty_expiry', header: 'Warranty', render: (a) => <span data-tour="asset-warranty-col"><Warranty a={a} /></span> },
           ]}
         />
       </Card>

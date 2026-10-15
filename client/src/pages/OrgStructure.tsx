@@ -1,17 +1,30 @@
 import React, { useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { DeptBadge, DeptIconPicker, deptIcon } from '../components/DeptBadge';
 import { Button, Card, Field, Input, Modal, PageHeader, Select, Table, Tabs, Textarea, useConfirm, useFetch, useForm, useToast, SearchInput, Badge } from '../components/ui';
 
 interface Department { id: number; name: string; code?: string; parent_id?: number | null; parent_name?: string; head_employee_id?: number | null; head_name?: string; description?: string; color?: string; icon?: string | null; employee_count: number; position_count: number; active: number }
 interface Position { id: number; title: string; code?: string; department_id?: number | null; department_name?: string; reports_to_position_id?: number | null; reports_to_title?: string; level: number; grade?: string; headcount: number; filled: number; description?: string; active: number; jd_count: number }
 
-const TOUR = [
-  { element: '[data-tour="org-tabs"]', title: 'Departments and positions', description: 'Switch between the department list and the position (job title) list. Both feed the org tree.' },
-  { element: '[data-tour="org-add"]', title: 'Add a department or position', description: 'HR can create new departments (with a parent department) and positions (with a reporting line and headcount).' },
-  { element: '[data-tour="org-table"]', title: 'Manage the structure', description: 'Click any row to edit it. Each department has an icon and colour used across the app. Positions track filled vs planned headcount.' },
+const TOUR: TourStep[] = [
+  { title: 'Build your organisation', description: 'This is where the company structure is defined. The flow: 1) create departments (and sub-departments), 2) create the positions inside them with their reporting lines and planned headcount, 3) assign employees to them from their profiles. Everything here feeds Employees, the Org tree, Recruitment and the dashboard.' },
+  { element: '[data-tour="org-tabs"]', title: 'Two lists', description: 'Departments are the teams; positions are the job titles inside them. The number on each tab is how many exist. Start with departments.' },
+  // departments
+  { tab: 'departments', element: '[data-tour="org-add"]', title: 'Add a department', description: 'HR opens a form for the name, a short code (such as ENG), the parent department for a sub-team, the department head, and an icon and colour. The icon and colour appear on department badges everywhere in the app.' },
+  { element: '[data-tour="org-search"]', title: 'Search', description: 'Filter the list by name or code. The same box searches positions on the Positions tab.' },
+  { element: '[data-tour="org-table"]', title: 'Department list', description: 'Every department with its parent, head, number of positions and employees, and whether it is active. HR clicks a row to edit it.' },
+  { element: '[data-tour="org-dept-name"]', title: 'Department badge', description: 'The icon, colour and code you chose. Sub-departments show their parent in the next column, which builds the department view of the Org tree.' },
+  { element: '[data-tour="org-dept-counts"]', title: 'Positions and employees', description: 'How many positions and people sit in the department. A department can only be deleted once it has no employees; reassign them first.' },
+  { element: '[data-tour="org-dept-status"]', title: 'Active or inactive', description: 'Set a department to inactive in its edit form when it is being wound down instead of deleting it, so history stays intact.' },
+  // positions
+  { tab: 'positions', element: '[data-tour="org-add"]', title: 'Add a position', description: 'Next, positions. The button now adds a position: title, code, department, the position it reports to, level (higher means more senior), grade and planned headcount.' },
+  { element: '[data-tour="org-table"]', title: 'Position list', description: 'Every job title with its department, reporting line, level, headcount, job descriptions and status. HR clicks a row to edit or delete it.' },
+  { element: '[data-tour="org-pos-reports"]', title: 'Reports to', description: 'The position this role reports to. It defines the intended structure; the actual manager of each person is set on their employee profile.' },
+  { element: '[data-tour="org-pos-headcount"]', title: 'Filled vs planned', description: 'People currently in this position against the planned headcount. A gap means an opening: raise a vacancy for it in Recruitment.' },
+  { element: '[data-tour="org-pos-jds"]', title: 'Job descriptions', description: 'How many job descriptions are written for the position. Write and manage them in Job descriptions; they are reused when you open vacancies.' },
+  { tab: 'departments', title: 'What to do next', description: 'Assign people to departments and positions from each employee profile, or by dragging them in the Org tree. Work locations and shifts, which employees also need, are set up under Attendance.' },
 ];
 
 export default function OrgStructure() {
@@ -26,7 +39,9 @@ export default function OrgStructure() {
   const [editPos, setEditPos] = useState<Partial<Position> | null>(null);
 
   const filteredDepts = useMemo(() => (depts.data || []).filter((d) => !q || d.name.toLowerCase().includes(q.toLowerCase()) || (d.code || '').toLowerCase().includes(q.toLowerCase())), [depts.data, q]);
+  const firstDept = filteredDepts[0]?.id;
   const filteredPos = useMemo(() => (positions.data || []).filter((p) => !q || p.title.toLowerCase().includes(q.toLowerCase()) || (p.department_name || '').toLowerCase().includes(q.toLowerCase())), [positions.data, q]);
+  const firstPos = filteredPos[0]?.id;
 
   return (
     <>
@@ -43,7 +58,7 @@ export default function OrgStructure() {
       />
       <Tabs tour="org-tabs" value={tab} onChange={(k) => setTab(k as any)} tabs={[{ key: 'departments', label: 'Departments', count: depts.data?.length }, { key: 'positions', label: 'Positions', count: positions.data?.length }]} />
       <div className="toolbar">
-        <SearchInput value={q} onChange={setQ} placeholder={`Search ${tab}…`} />
+        <SearchInput tour="org-search" value={q} onChange={setQ} placeholder={`Search ${tab}…`} />
       </div>
       {tab === 'departments' ? (
         <Card padded={false} tour="org-table">
@@ -52,12 +67,12 @@ export default function OrgStructure() {
             rows={filteredDepts}
             onRowClick={isHr ? (d) => setEditDept(d) : undefined}
             columns={[
-              { key: 'name', header: 'Department', render: (d) => <DeptBadge name={d.name} icon={d.icon} color={d.color} code={d.code} size="md" /> },
+              { key: 'name', header: 'Department', render: (d) => <span data-tour={d.id === firstDept ? 'org-dept-name' : undefined}><DeptBadge name={d.name} icon={d.icon} color={d.color} code={d.code} size="md" /></span> },
               { key: 'parent_name', header: 'Parent', render: (d) => d.parent_name || '—' },
               { key: 'head_name', header: 'Head', render: (d) => d.head_name || '—' },
-              { key: 'position_count', header: 'Positions', align: 'right' },
+              { key: 'position_count', header: 'Positions', align: 'right', render: (d) => <span data-tour={d.id === firstDept ? 'org-dept-counts' : undefined}>{d.position_count}</span> },
               { key: 'employee_count', header: 'Employees', align: 'right' },
-              { key: 'active', header: 'Status', render: (d) => <Badge tone={d.active ? 'success' : 'neutral'}>{d.active ? 'Active' : 'Inactive'}</Badge> },
+              { key: 'active', header: 'Status', render: (d) => <span data-tour={d.id === firstDept ? 'org-dept-status' : undefined}><Badge tone={d.active ? 'success' : 'neutral'}>{d.active ? 'Active' : 'Inactive'}</Badge></span> },
             ]}
           />
         </Card>
@@ -70,10 +85,10 @@ export default function OrgStructure() {
             columns={[
               { key: 'title', header: 'Position', render: (p) => (<span><strong>{p.title}</strong> {p.code ? <span className="muted mono">{p.code}</span> : null}</span>) },
               { key: 'department_name', header: 'Department', render: (p) => p.department_name || '—' },
-              { key: 'reports_to_title', header: 'Reports to', render: (p) => p.reports_to_title || '—' },
+              { key: 'reports_to_title', header: 'Reports to', render: (p) => <span data-tour={p.id === firstPos ? 'org-pos-reports' : undefined}>{p.reports_to_title || '—'}</span> },
               { key: 'level', header: 'Level', align: 'right' },
-              { key: 'headcount', header: 'Headcount', align: 'right', render: (p) => (<span className={p.filled > p.headcount ? 'muted' : ''}>{p.filled} / {p.headcount}</span>) },
-              { key: 'jd_count', header: 'JDs', align: 'right' },
+              { key: 'headcount', header: 'Headcount', align: 'right', render: (p) => (<span className={p.filled > p.headcount ? 'muted' : ''} data-tour={p.id === firstPos ? 'org-pos-headcount' : undefined}>{p.filled} / {p.headcount}</span>) },
+              { key: 'jd_count', header: 'JDs', align: 'right', render: (p) => <span data-tour={p.id === firstPos ? 'org-pos-jds' : undefined}>{p.jd_count}</span> },
               { key: 'active', header: 'Status', render: (p) => <Badge tone={p.active ? 'success' : 'neutral'}>{p.active ? 'Active' : 'Inactive'}</Badge> },
             ]}
           />

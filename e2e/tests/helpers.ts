@@ -22,20 +22,34 @@ export async function logout(page: Page) {
   await expect(page).toHaveURL(/\/login/);
 }
 
-/** Runs the page tour and walks through every step. */
-export async function runTour(page: Page) {
+/**
+ * Runs the page tour and walks through every step (tours have no fixed length and may switch tabs).
+ * Returns the step titles shown, so specs can assert the flow.
+ */
+export async function runTour(page: Page, opts: { minSteps?: number } = {}) {
   const btn = page.getByTestId('tour-button');
   await expect(btn).toBeEnabled();
   await btn.click();
   const popover = page.locator('.driver-popover');
   await expect(popover).toBeVisible();
-  for (let i = 0; i < 12; i++) {
+  const titles: string[] = [];
+  for (let i = 0; i < 150; i++) {
+    const title = (await popover.locator('.driver-popover-title').textContent())?.trim() || '';
+    if (titles[titles.length - 1] !== title) titles.push(title);
     const next = popover.locator('.driver-popover-next-btn');
     const text = (await next.textContent())?.trim();
     await next.click();
     if (text === 'Done') break;
+    // The next step may need a tab switch; wait for it, or for the tour to end.
+    await page.waitForFunction((prev) => {
+      const p = document.querySelector('.driver-popover');
+      return !p || (p.querySelector('.driver-popover-title')?.textContent || '').trim() !== prev;
+    }, title, { timeout: 5000 }).catch(() => {});
+    if (!(await popover.isVisible())) break;
   }
   await expect(popover).toBeHidden();
+  if (opts.minSteps) expect(titles.length).toBeGreaterThanOrEqual(opts.minSteps);
+  return titles;
 }
 
 export async function expectToast(page: Page, kind: 'success' | 'error' = 'success', text?: string | RegExp) {

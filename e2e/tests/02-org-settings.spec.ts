@@ -5,7 +5,7 @@ test.describe('org structure', () => {
   test('HR adds a department and a position; both appear in the org tree', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/org');
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
     await page.getByTestId('org-add').click();
     const dm = page.getByTestId('department-modal');
     await dm.getByLabel('Name').fill('Customer Success');
@@ -34,7 +34,9 @@ test.describe('settings', () => {
   test('HR updates branding, document formats, custom fields and users', async ({ page }) => {
     await login(page, USERS.hr);
     await page.goto('/settings');
-    await runTour(page);
+    await runTour(page, { minSteps: 18 });
+    // The tour walks every tab; make sure we are back on Company even if it ended mid-animation.
+    await page.getByTestId('tab-company').click();
     await page.getByTestId('company-name').fill('Acme Corp Ltd');
     await page.getByTestId('company-save').click();
     await expectToast(page, 'success');

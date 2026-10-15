@@ -116,6 +116,8 @@ button { font: inherit; }
 .nav-link { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: var(--sidebar-ink); font-weight: 500; position: relative; white-space: nowrap; }
 .nav-link:hover { background: var(--sidebar-hover); text-decoration: none; color: #fff; }
 .nav-link.active { background: var(--brand); color: #fff; }
+/* Long labels never spill out of the sidebar: truncate with an ellipsis (the link's title shows the full name). */
+.nav-link .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .nav-icon { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 11.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .sidebar:not(:hover):not(.pinned):not(.open) .nav-badge { position: absolute; top: 4px; right: 6px; margin: 0; min-width: 16px; height: 16px; font-size: 10px; padding: 0 4px; }
@@ -316,12 +318,21 @@ body.modal-open { overflow: hidden; }
 .demo-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 
 /* ---------- Tour (driver.js overrides) ---------- */
-.driver-popover.hrms-tour { border-radius: 12px; padding: 16px; max-width: 340px; }
-.driver-popover.hrms-tour .driver-popover-title { font-size: 15px; font-weight: 700; }
-.driver-popover.hrms-tour .driver-popover-description { font-size: 13.5px; color: var(--text-2); }
-.driver-popover.hrms-tour .driver-popover-next-btn, .driver-popover.hrms-tour .driver-popover-prev-btn { border-radius: 7px; text-shadow: none; font-weight: 600; }
-.driver-popover.hrms-tour .driver-popover-next-btn { background: var(--brand); color: #fff; border: 0; }
+/* Tour popover (driver.js), themed with the app's variables so it reads well in light and dark. */
+.driver-popover.hrms-tour { border-radius: 12px; padding: 16px; max-width: 360px; background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-lg); font-family: inherit; }
+.driver-popover.hrms-tour .driver-popover-title { font-size: 15px; font-weight: 700; color: var(--text); padding-right: 22px; }
+.driver-popover.hrms-tour .driver-popover-description { font-size: 13.5px; line-height: 1.55; color: var(--text); opacity: 0.9; }
+.driver-popover.hrms-tour .driver-popover-close-btn { color: var(--muted); }
+.driver-popover.hrms-tour .driver-popover-close-btn:hover, .driver-popover.hrms-tour .driver-popover-close-btn:focus { color: var(--text); }
+.driver-popover.hrms-tour .driver-popover-footer-btn { border-radius: 7px; text-shadow: none; font-weight: 600; font-size: 12.5px; padding: 5px 10px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.driver-popover.hrms-tour .driver-popover-footer-btn:hover, .driver-popover.hrms-tour .driver-popover-footer-btn:focus { background: var(--surface-3); }
+.driver-popover.hrms-tour .driver-popover-next-btn { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.driver-popover.hrms-tour .driver-popover-next-btn:hover, .driver-popover.hrms-tour .driver-popover-next-btn:focus { background: var(--brand); filter: brightness(1.08); }
 .driver-popover.hrms-tour .driver-popover-progress-text { color: var(--muted); }
+.driver-popover.hrms-tour .driver-popover-arrow-side-top { border-top-color: var(--surface); }
+.driver-popover.hrms-tour .driver-popover-arrow-side-bottom { border-bottom-color: var(--surface); }
+.driver-popover.hrms-tour .driver-popover-arrow-side-left { border-left-color: var(--surface); }
+.driver-popover.hrms-tour .driver-popover-arrow-side-right { border-right-color: var(--surface); }
 
 /* ---------- Org tree ---------- */
 .tree { overflow: auto; padding: 16px; }
@@ -609,7 +620,7 @@ body.modal-open { overflow: hidden; }
 .vbar-label.active { color: var(--brand); }
 .donut { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .donut-center { font-size: 20px; font-weight: 700; fill: var(--text); }
-.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; align-items: stretch; gap: 5px; min-width: 150px; }
 .legend li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .legend li.clickable:hover .legend-label { color: var(--brand); }
 .legend-value { margin-left: auto; font-weight: 600; }
@@ -834,3 +845,57 @@ input[type='date'].input, input[type='datetime-local'].input, input[type='time']
 input[type='date'].input::-webkit-calendar-picker-indicator, input[type='datetime-local'].input::-webkit-calendar-picker-indicator, input[type='time'].input::-webkit-calendar-picker-indicator, input[type='month'].input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.6; border-radius: 4px; padding: 2px; }
 input[type='date'].input::-webkit-calendar-picker-indicator:hover, input[type='datetime-local'].input::-webkit-calendar-picker-indicator:hover { opacity: 1; background: var(--surface-3); }
 :root[data-theme='dark'] input[type='date'].input::-webkit-calendar-picker-indicator, :root[data-theme='dark'] input[type='datetime-local'].input::-webkit-calendar-picker-indicator, :root[data-theme='dark'] input[type='time'].input::-webkit-calendar-picker-indicator, :root[data-theme='dark'] input[type='month'].input::-webkit-calendar-picker-indicator { filter: invert(1); }
+
+/* Public careers page (/careers): standalone layout outside the app shell. */
+.careers-page { min-height: 100vh; display: flex; flex-direction: column; background: radial-gradient(1200px 500px at 0% -10%, color-mix(in srgb, var(--brand) 18%, transparent), transparent), var(--bg); }
+.careers-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px clamp(16px, 4vw, 48px); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 85%, transparent); position: sticky; top: 0; z-index: 5; backdrop-filter: blur(6px); }
+.careers-brand { padding: 0; text-decoration: none; color: var(--text); }
+.careers-main { width: 100%; max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; flex: 1; }
+.careers-hero { padding: 16px 0 20px; }
+.careers-hero h1 { font-size: clamp(24px, 4vw, 34px); margin: 0 0 6px; }
+.careers-hero p { margin: 0; font-size: 15px; }
+.careers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.careers-card { display: flex; flex-direction: column; gap: 10px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; color: var(--text); text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.careers-card:hover { border-color: var(--brand); box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.careers-card-title { font-size: 16px; }
+.careers-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 13px; }
+.careers-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.careers-summary { margin: 0; color: var(--text-2); font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.careers-cta { margin-top: auto; color: var(--brand); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
+.careers-back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: none; margin-bottom: 12px; font-size: 13px; }
+.careers-back:hover { color: var(--brand); }
+.careers-detail { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 20px; align-items: start; }
+.careers-detail .card { margin-bottom: 0; }
+.careers-apply { position: sticky; top: 88px; }
+.careers-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.careers-footer { text-align: center; padding: 20px 16px; font-size: 12.5px; border-top: 1px solid var(--border); }
+@media (max-width: 820px) {
+  .careers-detail { grid-template-columns: 1fr; }
+  .careers-apply { position: static; }
+  .careers-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------- Payroll output files ---------- */
+.chip-warning { background: var(--warning-bg); color: var(--warning-ink); border-color: var(--warning-border); cursor: pointer; font: inherit; font-size: 12.5px; }
+.output-files { list-style: none; margin: 0; padding: 0; }
+.output-file { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px dashed var(--border); }
+.output-file:first-child { padding-top: 0; }
+.output-file:last-child { border-bottom: 0; padding-bottom: 0; }
+.output-file-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.output-file-desc { color: var(--text-2); font-size: 13px; }
+.output-file-portal { color: var(--muted); font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; }
+.output-file-excluded { margin-top: 6px; }
+.output-file-excluded .list li { border-bottom-color: var(--warning-border); }
+.output-file-actions { flex-shrink: 0; display: flex; align-items: center; }
+.output-file-wait { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12.5px; text-align: right; max-width: 220px; }
+@media (max-width: 640px) {
+  .output-file { flex-direction: column; }
+  .output-file-wait { align-items: flex-start; text-align: left; }
+}
+
+/* Agency logo mark (components/BrandMark.tsx). */
+.brand-mark { display: inline-flex; flex: none; align-items: center; justify-content: center; }
+.brand-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.brand-mark-auto .brand-mark-dark { display: none; }
+:root[data-theme='dark'] .brand-mark-auto .brand-mark-light { display: none; }
+:root[data-theme='dark'] .brand-mark-auto .brand-mark-dark { display: block; }

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useCounts } from '../lib/notifications';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { PageHeader, Tabs, useFetch } from '../components/ui';
 import { MyLeave } from '../components/leave/MyLeave';
 import { Approvals } from '../components/leave/Approvals';
@@ -13,20 +13,33 @@ import { BalancesMatrix, LeaveSettingsTab, LeaveTypesTab } from '../components/l
 import CompOffTab from '../components/leave/CompOffTab';
 import { DirectoryEmployee, Holiday, LeaveSettings, LeaveType } from '../components/leave/shared';
 
-const TOUR = [
-  { element: '[data-tour="leave-balances"]', title: 'Your balances', description: 'One card per leave type: days available, used, pending approval, and what was allocated or carried forward this year.' },
-  { element: '[data-tour="leave-apply-btn"]', title: 'Apply for leave', description: 'Pick a type, dates and an optional half day. The form shows the type’s rules (notice, documents) and counts working days for you.' },
-  { element: '[data-tour="leave-my-requests"]', title: 'Your requests', description: 'Track status and who it is pending with. Edit or cancel pending requests; corrections to approved leave go back to your approver. Click a row for the full history.' },
-  { element: '[data-tour="leave-tabs"]', title: 'More views', description: 'Managers approve requests here; everyone sees the team calendar and their comp off. HR also manages all requests, balances, leave types and settings.' },
-  { element: '[data-tour="leave-approvals"]', title: 'Approvals', description: 'Each card shows the request, the proposed change for corrections, and Approve/Reject with an optional note.' },
-  { element: '[data-tour="leave-calendar"]', title: 'Team calendar', description: 'Who is away when. Chips are coloured by leave type; striped chips are still pending; holidays and weekly offs are marked.' },
-  { element: '[data-tour="compoff-detected"]', title: 'Comp off: detected days', description: 'Days you worked on a weekly off or holiday are found automatically from attendance. Request the credit or dismiss it; credits expire if unclaimed.' },
-  { element: '[data-tour="compoff-mine"]', title: 'Comp off balance', description: 'Approved credits are added to your Comp Off leave balance for that year, ready to be applied like any other leave.' },
-  { element: '[data-tour="compoff-approvals"]', title: 'Comp off approvals', description: 'Managers approve or reject credits requested by their reports; the balance is updated the moment a credit is approved.' },
-  { element: '[data-tour="compoff-criteria"]', title: 'Detection criteria', description: 'HR sees the rules in force (weekly offs, holidays, extra hours, expiry) and can run a detection scan on demand.' },
-  { element: '[data-tour="leave-balances-matrix"]', title: 'Balances matrix', description: 'Employees by leave type. Click any cell to change allocation, carry forward or add an adjustment.' },
-  { element: '[data-tour="leave-types"]', title: 'Leave types', description: 'Define quotas, paid/unpaid, carry forward, notice and half-day rules, and a colour used across the module.' },
-  { element: '[data-tour="leave-compoff-settings"]', title: 'Comp off rules', description: 'Switch comp off on or off, choose what earns it, the minutes needed for a full or half day, the expiry and whether a manager must approve.' },
+const TOUR: TourStep[] = [
+  { title: 'Leave, step by step', description: 'Leave follows one loop: 1) check your balance, 2) apply, 3) track the request, 4) your manager approves, 5) everyone sees it on the team calendar. Comp off turns extra working days into leave, and HR looks after all requests, balances, leave types and rules.' },
+  { tab: 'me', element: '[data-tour="leave-tabs"]', title: 'Leave areas', description: 'My leave is yours. Approvers get an Approvals tab, everyone gets the Team calendar and Comp off, and HR also sees All requests, Balances, Leave types and Settings. Red badges count what is waiting for you.' },
+  { element: '[data-tour="leave-balances"]', title: '1. Check your balance', description: 'One card per leave type for this year: the big number is what you can still take, the bar shows how much is used, and the line below splits it into used, pending approval and allocated (plus any carried forward or adjusted days).' },
+  { element: '[data-tour="leave-apply-btn"]', title: '2. Apply for leave', description: 'Opens the request form: pick the type, the dates and a half day if you need one. The form shows the type’s rules (notice, documents, paid or unpaid) and counts the working days for you, skipping weekly offs and holidays.' },
+  { element: '[data-tour="leave-my-requests"]', title: '3. Track your requests', description: 'Every request with its type, dates, days, status and who it is pending with. Edit or cancel while pending; changing an approved request sends a correction to your approver and the original dates stay until it is approved. Click a row for the full history.' },
+  { tab: 'approvals', element: '[data-tour="leave-approvals"]', title: '4. Approve requests', description: 'For approvers: one card per pending request with the dates, days, type and reason. Corrections show the current and proposed dates side by side. Add a note and Approve or Reject; the employee’s balance updates straight away.' },
+  { tab: 'calendar', element: '[data-tour="leave-calendar-nav"]', title: '5. Team calendar', description: 'Step month by month, or jump back to today, to see who is away and when, before you apply or approve.' },
+  { element: '[data-tour="leave-calendar-legend"]', title: 'Filter by type', description: 'Click a leave type to show only that type; All types shows everything. The samples explain how pending requests and holidays are drawn.' },
+  { element: '[data-tour="leave-calendar"]', title: 'Who is away', description: 'Each day lists the people on leave, coloured by leave type. Striped chips are still pending, and holidays and weekly offs are shaded.' },
+  { tab: 'compoff', element: '[data-tour="compoff-detected"]', title: 'Next, comp off', description: 'Worked on a weekly off or a holiday? Attendance finds those days automatically after you punch out. Request credit to send it for approval, or dismiss it. Unclaimed credits expire.' },
+  { element: '[data-tour="compoff-balance"]', title: 'Comp off balance', description: 'Approved credits land in your comp off leave balance. Use them like any other leave by applying with the comp off type.' },
+  { element: '[data-tour="compoff-summary"]', title: 'Credit summary', description: 'How many of your credits are detected, pending, approved, rejected or expired.' },
+  { element: '[data-tour="compoff-credits"]', title: 'My credits', description: 'Every credit with the worked date, why it was earned, the days credited, its status, expiry and who approved it.' },
+  { element: '[data-tour="compoff-approvals"]', title: 'Approve comp off', description: 'Managers see the credits their reports requested. Add an optional note and Approve or Reject; approving adds the days to the employee’s balance.' },
+  { element: '[data-tour="compoff-team"]', title: 'Team credits', description: 'Managers see their team’s credits and HR sees everyone’s. Filter by status to find what is pending or expiring.' },
+  { element: '[data-tour="compoff-criteria"]', title: 'Detection rules', description: 'HR sees the rules in force: weekly offs, holidays, extra hours, how much work earns a full or half day, expiry and approval. Run detection now to scan attendance on demand.' },
+  { tab: 'all', element: '[data-tour="leave-all-filters"]', title: 'HR: all requests', description: 'Every leave request in the company. Filter by status, employee and dates to answer “who was on leave last month?” quickly.' },
+  { element: '[data-tour="leave-apply-behalf"]', title: 'Apply on behalf', description: 'HR can file leave for an employee, for example someone who is sick and cannot log in. It follows the same rules and balances.' },
+  { element: '[data-tour="leave-all"]', title: 'Request list', description: 'Status, days and approval trail for each request. HR can edit or cancel requests here, and click a row for the history.' },
+  { tab: 'balances', element: '[data-tour="leave-balances-toolbar"]', title: 'Balances', description: 'Pick a year and search for an employee.' },
+  { element: '[data-tour="leave-balances-matrix"]', title: 'Balances matrix', description: 'Employees down the side, leave types across; each cell shows available and used days. Click a cell to change the allocation, carry forward or add an adjustment with a reason.' },
+  { tab: 'types', element: '[data-tour="leave-type-add"]', title: 'Leave types', description: 'Add a leave type such as Casual, Sick or Comp off. Creating a type gives every active employee a balance for this year.' },
+  { element: '[data-tour="leave-types"]', title: 'Type rules', description: 'Annual quota, paid or unpaid, carry forward and rules such as notice, documents and half days. Click a row to edit; the colour is used across the module.' },
+  { tab: 'settings', element: '[data-tour="leave-settings"]', title: 'Leave settings', description: 'When the leave year starts, the longest single request, negative balances, the sandwich rule and whether managers can approve or only HR.' },
+  { element: '[data-tour="leave-compoff-settings"]', title: 'Comp off rules', description: 'Switch comp off on or off, choose what earns it (weekly offs, holidays, extra hours), the minutes for a full or half day, the expiry and whether a manager must approve. Press Save at the top.' },
+  { tab: 'me', title: 'What to do next', description: 'Approved leave shows on the Attendance roster and team calendar, and unpaid leave counts as loss of pay when Payroll is processed. Check your balance before you apply, and approvers should clear the Approvals tab regularly.' },
 ];
 
 const TAB_KEYS = ['me', 'approvals', 'calendar', 'compoff', 'all', 'balances', 'types', 'settings'] as const;

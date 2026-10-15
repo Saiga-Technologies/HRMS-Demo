@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icons';
+import { apiUrl } from '../lib/api';
 
 /* ------------------------------------------------------------------ */
 /* Toasts                                                              */
@@ -239,17 +240,22 @@ export function FileInput({ accept, onChange, file, hint, label = 'Drag a file h
 }
 
 /** Downloads a Blob/URL as a file (used by CSV/PDF export buttons). */
-export async function downloadUrl(url: string, filename: string) {
-  const res = await fetch(url, { credentials: 'same-origin' });
+/** Download a file with the session cookie. Without `filename`, the server's Content-Disposition name is used. */
+export async function downloadUrl(url: string, filename?: string) {
+  const res = await fetch(apiUrl(url), { credentials: 'same-origin' });
   if (!res.ok) {
     let msg = res.statusText;
     try { msg = (await res.json()).error || msg; } catch { /* ignore */ }
     throw new Error(msg || 'Download failed');
   }
+  const cd = res.headers.get('content-disposition') || '';
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+  const plain = /filename="([^"]+)"/i.exec(cd);
+  const name = filename || (star ? decodeURIComponent(star[1]) : plain ? plain[1] : 'download');
   const blob = await res.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = filename;
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();

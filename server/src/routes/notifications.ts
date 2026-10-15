@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { all, get, getSetting } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { approvableEmployeeIds } from '../approvers.js';
-import { today } from '../util.js';
+import { today, addDays } from '../util.js';
 import { documentStatus } from './documents.js';
+import { visibilityClause, windowClause } from './announcements.js';
 
 const r = Router();
 
@@ -49,18 +50,28 @@ r.get('/counts', requireAuth, (req, res) => {
   counts.my_letters_ready = n(`SELECT COUNT(*) AS n FROM letters WHERE status = 'generated'${mine('employee_id')}`);
   counts.reviews_pending_self = n(`SELECT COUNT(*) AS n FROM reviews r JOIN review_cycles c ON c.id = r.cycle_id WHERE c.status = 'open' AND r.status = 'pending_self'${mine('r.employee_id')}`);
   counts.reviews_pending_manager = n(`SELECT COUNT(*) AS n FROM reviews r JOIN review_cycles c ON c.id = r.cycle_id WHERE c.status = 'open' AND r.status = 'pending_manager'${isHr ? '' : mine('r.reviewer_employee_id')}`);
-  counts.announcements_unread = n(`SELECT COUNT(*) AS n FROM announcements a WHERE (a.publish_at IS NULL OR a.publish_at <= ?) AND (a.expires_at IS NULL OR a.expires_at >= ?) AND NOT EXISTS (SELECT 1 FROM announcement_reads ar WHERE ar.announcement_id = a.id AND ar.user_id = ?)`, [new Date().toISOString(), today(), user.id]);
+  // Same audience + publish window as the feed (GET /api/announcements), so "Mark all read" clears it.
+  const vis = visibilityClause(req);
+  const nowTs = new Date().toISOString();
+  counts.announcements_unread = n(`SELECT COUNT(*) AS n FROM announcements a WHERE ${vis.sql} AND ${windowClause} AND NOT EXISTS (SELECT 1 FROM announcement_reads ar WHERE ar.announcement_id = a.id AND ar.user_id = ?)`, [...vis.params, nowTs, nowTs, user.id]);
+  // Agency services: payroll approval (client), service desk, statutory filings.
+  const isAgency = !!req.agencyUser;
+  const clientApproval = getSetting<any>('payroll', {}).client_approval_required !== false;
+  counts.payroll_client_approval = isHr && !isAgency && clientApproval ? n("SELECT COUNT(*) AS n FROM payroll_runs WHERE status = 'processed'") : 0;
+  counts.service_requests_waiting = isHr ? n(isAgency ? "SELECT COUNT(*) AS n FROM service_requests WHERE status = 'open'" : "SELECT COUNT(*) AS n FROM service_requests WHERE status = 'waiting_client'") : 0;
+  counts.compliance_attention = isAgency ? n("SELECT COUNT(*) AS n FROM compliance_filings WHERE status = 'pending' AND due_date <= ?", [addDays(today(), 7)]) : 0;
+  counts.nav_services = counts.payroll_client_approval + counts.service_requests_waiting + counts.compliance_attention;
   // Roll-ups used by the sidebar
   counts.nav_attendance = counts.attendance_appeals + counts.comp_off_approvals + counts.my_comp_off_detected;
   counts.nav_leave = counts.leave_approvals + counts.my_leave_pending;
   counts.nav_documents = counts.documents_expiring + counts.documents_pending_review;
-  counts.nav_payroll = counts.payslip_requests + counts.payroll_draft_runs;
+  counts.nav_payroll = counts.payslip_requests + counts.payroll_draft_runs + counts.payroll_client_approval;
   counts.nav_recruitment = counts.candidates_new + counts.candidates_interview;
   counts.nav_journey = counts.journeys_in_progress;
   counts.nav_letters = counts.letter_requests + counts.my_letters_ready;
   counts.nav_performance = counts.reviews_pending_self + counts.reviews_pending_manager;
   counts.nav_announcements = counts.announcements_unread;
-  counts.total_actions = counts.leave_approvals + counts.attendance_appeals + counts.comp_off_approvals + counts.payslip_requests + counts.documents_pending_review + counts.my_comp_off_detected + counts.letter_requests + counts.reviews_pending_self + counts.reviews_pending_manager;
+  counts.total_actions = counts.payroll_client_approval + counts.service_requests_waiting + counts.leave_approvals + counts.attendance_appeals + counts.comp_off_approvals + counts.payslip_requests + counts.documents_pending_review + counts.my_comp_off_detected + counts.letter_requests + counts.reviews_pending_self + counts.reviews_pending_manager;
   res.json({ counts, computed_at: new Date().toISOString(), today: today(), settings: { appeal_deadline_days: getSetting('attendance', { appeal_deadline_days: 3 }).appeal_deadline_days } });
 });
 

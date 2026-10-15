@@ -35,12 +35,12 @@ export function TeamCalendar({ types, weeklyOffs }: { types: LeaveType[]; weekly
 
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="leave-calendar-nav">
         <Button size="sm" onClick={() => move(-1)} aria-label="Previous month">‹</Button>
         <strong style={{ minWidth: 150, textAlign: 'center' }} data-testid="calendar-month">{MONTHS[cursor.m]} {cursor.y}</strong>
         <Button size="sm" onClick={() => move(1)} aria-label="Next month">›</Button>
         <Button size="sm" variant="ghost" onClick={() => { const d = new Date(); setCursor({ y: d.getFullYear(), m: d.getMonth() }); }}>Today</Button>
-        <div className="chip-list calendar-legend" style={{ marginLeft: 'auto' }}>
+        <div className="chip-list calendar-legend" data-tour="leave-calendar-legend" style={{ marginLeft: 'auto' }}>
           <button type="button" className={`chip ${!filterType ? 'active' : ''}`} onClick={() => setFilterType('')}>All types</button>
           {types.filter((t) => t.active).map((t) => (
             <button key={t.id} type="button" className={`chip ${filterType === String(t.id) ? 'active' : ''}`} onClick={() => setFilterType(filterType === String(t.id) ? '' : String(t.id))}>

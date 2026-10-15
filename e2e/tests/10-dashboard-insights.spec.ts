@@ -35,7 +35,7 @@ test.describe('dashboard insights', () => {
     await expect(page.locator('[data-card-key="attendance_trend"] .line-svg')).toBeVisible();
     // the tour mentions the clickable charts
     await page.goto('/');
-    await runTour(page);
+    await runTour(page, { minSteps: 20 });
 
     // Add a "Late comers" chart from the grouped catalog (search narrows the list)
     const before = await page.locator('[data-card-key="late_comers"]').count();

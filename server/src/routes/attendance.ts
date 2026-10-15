@@ -4,6 +4,7 @@ import { all, get, insert, update, run, getSetting, parseJson, parseJsonAll, tra
 import { requireAuth, requireHr, requireRole, canAccessEmployee, visibleEmployeeIds } from '../auth.js';
 import { approverChain, approvableEmployeeIds, canApproveFor, defaultApprover } from '../approvers.js';
 import { badRequest, notFound, forbidden, pick, requireFields, audit, toInt, toNum, nowIso, today, wrap, distanceMeters, eachDay, assertDate, addDays, tzOffsetMinutes } from '../util.js';
+import { assertPeriodOpen } from '../ops/payrollCalendar.js';
 import { DEFAULT_ATTENDANCE_SETTINGS } from './settings.js';
 
 const r = Router();
@@ -356,6 +357,7 @@ r.put('/records/:employeeId/:date', requireHr, wrap(async (req, res) => {
   const eid = toInt(req.params.employeeId)!;
   const date = req.params.date;
   assertDate(date, 'date');
+  assertPeriodOpen(String(date));
   if (!get('SELECT 1 FROM employees WHERE id = ?', [eid])) throw notFound('Employee not found');
   const data: any = pick(req.body, ['punch_in_at', 'punch_out_at', 'status', 'notes']);
   for (const k of ['punch_in_at', 'punch_out_at']) if (data[k] && Number.isNaN(Date.parse(data[k]))) throw badRequest(`${k} must be an ISO datetime`);
@@ -374,6 +376,7 @@ r.delete('/records/:id', requireHr, (req, res) => {
   assertDirectEditAllowed();
   const rec = get<any>('SELECT * FROM attendance_records WHERE id = ?', [toInt(req.params.id)]);
   if (!rec) throw notFound();
+  assertPeriodOpen(rec.date);
   run('DELETE FROM attendance_records WHERE id = ?', [rec.id]);
   audit(req, 'delete', 'attendance', rec.id, { employee_id: rec.employee_id, date: rec.date, before: snapshot(rec), after: null });
   res.json({ ok: true });
@@ -510,6 +513,7 @@ r.post('/corrections/:id/review', requireRole('manager'), wrap(async (req, res) 
   if (!canApproveFor(req, c.employee_id)) throw forbidden('Only the reporting manager hierarchy or HR can review this appeal');
   const decision = req.body.decision === 'approve' ? 'approved' : req.body.decision === 'reject' ? 'rejected' : null;
   if (!decision) throw badRequest('decision must be approve or reject');
+  if (decision === 'approved') assertPeriodOpen(c.date);
   let previous: any = null, applied: any = null, recordId: number | null = null;
   transaction(() => {
     if (decision === 'approved') {

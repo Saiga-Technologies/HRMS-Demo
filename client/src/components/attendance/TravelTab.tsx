@@ -327,7 +327,7 @@ function TeamTravel({ month, range }: { month: string; range: { from: string; to
   const options = (employees.data || []).filter((e) => visibleIds.has(e.id) || e.id === Number(employeeId));
   return (
     <div className="detail-grid mb" data-tour="travel-team">
-      <Card padded={false} title="Team travel"
+      <Card padded={false} tour="travel-team-trips" title="Team travel"
         actions={
           <span className="row">
             <Select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} aria-label="Employee" data-testid="travel-team-employee">
@@ -339,7 +339,7 @@ function TeamTravel({ month, range }: { month: string; range: { from: string; to
         }>
         <TripsTable rows={rows} loading={team.loading} showEmployee />
       </Card>
-      <Card title={`Distance per employee · ${fmtDate(range.from, { month: 'long', year: 'numeric' })}`} actions={summary.data ? <Badge tone="info">{summary.data.totals.trips} trips · {fmtKm(summary.data.totals.km)}</Badge> : null}>
+      <Card tour="travel-distance" title={`Distance per employee · ${fmtDate(range.from, { month: 'long', year: 'numeric' })}`} actions={summary.data ? <Badge tone="info">{summary.data.totals.trips} trips · {fmtKm(summary.data.totals.km)}</Badge> : null}>
         {summary.loading && !summary.data ? <Spinner /> : (
           <BarChart horizontal data={(summary.data?.rows || []).map((r) => ({ key: String(r.employee_id), label: r.employee_name, value: r.km, hint: `${r.employee_name}: ${fmtKm(r.km)} over ${r.trips} trip${r.trips === 1 ? '' : 's'} (${fmtMinutes(r.minutes)})` }))} valueFormat={(v) => fmtKm(v)} onSelect={(d) => setEmployeeId(d.key || '')} />
         )}

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { api, qs } from '../lib/api';
+import { api, qs, apiUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate, fmtDateTime, fmtMinutes, fmtMoney, fmtTime, fullName, label, todayIso } from '../lib/format';
 import { Avatar, Badge, Button, Card, EmptyState, ExpiryDot, Field, Input, KeyValue, Modal, PageHeader, Spinner, Stat, StatusBadge, Table, Tabs, Textarea, useFetch, useForm, useToast } from '../components/ui';
 import { EmployeeFormModal, customFieldDisplay, groupDefs, type CustomFieldDef, type Employee } from '../components/EmployeeForm';
@@ -10,14 +10,47 @@ import { DeptBadge } from '../components/DeptBadge';
 import { Icon } from '../components/Icons';
 import { DocumentPreviewModal, DocumentUploadModal, FormatBadge, fmtBytes, documentFileUrl, type DocumentRow } from '../components/DocumentModals';
 
-const TOUR = [
-  { element: '[data-tour="employee-header"]', title: 'Employee header', description: 'Photo, name, code, role and status. HR (or the employee themself) can click the photo to upload a new one.' },
-  { element: '[data-tour="employee-edit"]', title: 'Edit the record', description: 'HR can edit every field including job, bank and custom fields. Employees can update their own contact details.' },
-  { element: '[data-tour="employee-tabs"]', title: 'Everything about this person', description: 'Profile, documents, salary, attendance, leave, assets and the onboarding journey live in these tabs.' },
-  { element: '[data-tour="employee-profile"]', title: 'Profile', description: 'Personal, contact, job, bank and custom-field details. Sensitive bank/tax data is only visible to HR and the employee.' },
-  { element: '[data-tour="employee-documents"]', title: 'Documents', description: 'Upload ID proofs, contracts and certificates. Colour dots show how close each document is to expiry.' },
-  { element: '[data-tour="employee-salary"]', title: 'Salary structure', description: 'The current basic and component breakdown with a net-pay preview, plus the history of past structures.' },
-  { element: '[data-tour="employee-journey"]', title: 'Journey', description: 'A timeline of onboarding stages with progress. Edit stages from the Journey module.' },
+const TOUR: TourStep[] = [
+  { title: 'The employee profile', description: 'Everything about one person in one place. HR completes a profile in this order: 1) check the header facts, 2) fill in the profile details, 3) upload documents, 4) set the salary structure, 5) follow the onboarding journey and hand out assets. Leave and attendance then build up over time.' },
+  // header
+  { element: '[data-tour="employee-temp-password"]', title: 'New login created', description: 'Shown once, right after HR creates the employee with a login. Copy the temporary password and share it securely; the employee must change it at first sign-in. It is not shown again.' },
+  { element: '[data-tour="employee-header"]', title: 'Header', description: 'Name, status chip (onboarding, probation, active, notice, exited), employment type, position and the employee ID.' },
+  { element: '[data-tour="employee-photo"]', title: 'Photo', description: 'HR, or the employee on their own profile, can click the photo to upload a JPG or PNG. It appears in the directory, the org tree and across the app.' },
+  { element: '[data-tour="employee-facts"]', title: 'Key facts', description: 'Department, work location, join date with tenure, manager (click to open their profile), number of direct reports, and the login email with its role. HR sees "No login" when the person cannot sign in yet.' },
+  { element: '[data-tour="employee-edit"]', title: 'Edit the record', description: 'HR can edit every field: personal, job and reporting line, status, custom fields, bank and statutory details. Employees see "Edit my details" and can update only their contact and emergency details.' },
+  { element: '[data-tour="employee-tabs"]', title: 'Profile tabs', description: 'The rest of the record is split into tabs. The tour now walks through them in the order a profile is usually completed.' },
+  // profile
+  { tab: 'profile', element: '[data-tour="employee-personal"]', title: 'Personal details', description: 'Name, date of birth, gender, marital status and nationality. Date of birth also feeds the upcoming birthdays card on the dashboard.' },
+  { element: '[data-tour="employee-contact"]', title: 'Contact', description: 'Work email (also the login ID), phone and address. Click the email or phone to start an email or call.' },
+  { element: '[data-tour="employee-job"]', title: 'Job and reporting', description: 'Department, position, manager, employment type and status. The manager here decides who approves this person\'s leave and attendance appeals, and where they sit in the org tree. Hired candidates show a link back to recruitment.' },
+  { element: '[data-tour="employee-dates"]', title: 'Dates and location', description: 'Employee code, join and confirmation dates, work location and shift. The shift sets expected hours and late marking in Attendance; the work location is used for punch-in geofencing.' },
+  { element: '[data-tour="employee-bank"]', title: 'Bank and statutory', description: 'Bank account, IFSC, tax ID and PF number used by Payroll. Only HR and the employee themself can see this card.' },
+  { element: '[data-tour="employee-emergency"]', title: 'Emergency contact', description: 'Who to call in an emergency. Employees can keep this up to date themselves.' },
+  { element: '[data-tour="employee-custom"]', title: 'Custom fields', description: 'Extra fields your company added under Settings, grouped by section (for example blood group or T-shirt size).' },
+  // documents
+  { tab: 'documents', element: '[data-tour="employee-documents"]', title: 'Documents', description: 'Next, documents: ID proofs, contracts, visas and certificates for this person. The badge in the title counts documents that are expiring or already expired.' },
+  { element: '[data-tour="employee-doc-upload"]', title: 'Upload a document', description: 'Opens a form where you choose the document type, attach the file and enter the issue and expiry dates. Each type allows only certain formats and sizes, and some require an expiry date (set under Documents, Document types).' },
+  { element: '[data-tour="employee-doc-expiry"]', title: 'Expiry colours', description: 'Green is valid, amber means expiring soon, orange is critical and red is expired. The thresholds come from the document type; expiring documents also show on the dashboard and in the Documents module.' },
+  { element: '[data-tour="employee-doc-actions"]', title: 'Preview and download', description: 'Preview opens the file next to its details, where you can edit the details (HR can also delete it). Download saves the original file.' },
+  // salary
+  { tab: 'salary', element: '[data-tour="employee-salary-current"]', title: 'Current salary structure', description: 'Next, salary: the structure in force with its effective date, monthly basic, currency, annual CTC and any component overrides. Payroll uses it for every run from that date. Only HR and the employee can see this tab.' },
+  { element: '[data-tour="employee-salary-new"]', title: 'New structure or revision', description: 'HR opens a form to set the effective date and basic, and optionally override the default value of any salary component. A live preview shows the monthly breakdown before you save. Saving a revision keeps the old one in the history.' },
+  { element: '[data-tour="employee-salary-breakdown"]', title: 'Monthly breakdown', description: 'Earnings, gross, deductions (statutory ones such as PF follow payroll settings) and the resulting net pay per month.' },
+  { element: '[data-tour="employee-salary-history"]', title: 'Salary history', description: 'Every structure ever set, newest first, with the current one marked. Use it to track increments and revisions.' },
+  // journey
+  { tab: 'journey', element: '[data-tour="employee-journey"]', title: 'Onboarding journey', description: 'Next, the journey: the onboarding stages from your journey templates, created automatically when the employee was added (hired candidates arrive with the recruitment stages already done). Each stage shows its owner, dates and checklist.' },
+  { element: '[data-tour="employee-journey-progress"]', title: 'Journey progress', description: 'The current stage and the share of stages completed. It also feeds the journey cards on the dashboard.' },
+  { element: '[data-tour="employee-journey-open"]', title: 'Update stages', description: 'HR opens the Journey module to start or complete stages and tick checklist items; employees can open it to follow their own progress.' },
+  // assets
+  { tab: 'assets', element: '[data-tour="employee-assets"]', title: 'Assets in hand', description: 'Next, assets: laptops, phones, ID cards and other equipment handed to this person, with the expected return date and condition. Assign and return assets from the Assets module; click a tag to open it there.' },
+  { element: '[data-tour="employee-assets-returned"]', title: 'Returned assets', description: 'What was handed back, when, and in what condition. Check that this list is complete before an exit.' },
+  // leave
+  { tab: 'leave', element: '[data-tour="employee-leave"]', title: 'Leave balances', description: 'Next, leave: one tile per leave type with the days available, and used, pending and allocated days for this year. Balances were created automatically when the employee was added.' },
+  { element: '[data-tour="employee-leave-requests"]', title: 'Leave requests', description: 'Every request with dates, days, reason, status and the reviewer\'s note. Apply, approve or reject in the Leave module.' },
+  // attendance
+  { tab: 'attendance', element: '[data-tour="employee-att-stats"]', title: 'Attendance summary', description: 'Finally, attendance for the last 30 days: days present, hours worked, late arrivals and overtime.' },
+  { element: '[data-tour="employee-att-table"]', title: 'Daily records', description: 'Each day\'s status, punch in and out, work and break time, minutes late and the location of the punch. Open attendance for the full calendar, corrections and reports.' },
+  { tab: 'profile', title: 'Profile complete', description: 'A complete profile has its details, required documents and a salary structure, so the person is picked up by Payroll and document compliance. Keep the status current (probation, active, notice, exited) as they move through their time with the company.' },
 ];
 
 type TabKey = 'profile' | 'documents' | 'salary' | 'attendance' | 'leave' | 'assets' | 'journey';
@@ -80,7 +113,7 @@ export default function EmployeeDetail() {
   if (!emp) return <Spinner />;
 
   const name = fullName(emp);
-  const photoSrc = emp.photo_path ? `/api/employees/${emp.id}/photo?v=${photoVer}` : null;
+  const photoSrc = emp.photo_path ? apiUrl(`/api/employees/${emp.id}/photo?v=${photoVer}`) : null;
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'profile', label: 'Profile' },
     { key: 'documents', label: 'Documents', count: emp.documents?.length ?? 0 },
@@ -103,7 +136,7 @@ export default function EmployeeDetail() {
       />
 
       {showTemp && tempPassword ? (
-        <div className="alert alert-success mb row between" data-testid="temp-password-alert">
+        <div className="alert alert-success mb row between" data-testid="temp-password-alert" data-tour="employee-temp-password">
           <span>Login created for <strong>{loginEmail || emp.email}</strong>. Temporary password: <code className="mono" data-testid="temp-password">{tempPassword}</code> (must be changed on first login).</span>
           <span className="row">
             <Button size="sm" onClick={() => { navigator.clipboard?.writeText(tempPassword).then(() => toast.success('Copied')).catch(() => {}); }}>Copy</Button>
@@ -119,7 +152,8 @@ export default function EmployeeDetail() {
             title={canEdit ? 'Click to upload a JPG or PNG photo' : undefined}
             onClick={() => canEdit && !uploadingPhoto && photoInput.current?.click()}
             role={canEdit ? 'button' : undefined}
-            data-testid="employee-photo">
+            data-testid="employee-photo"
+            data-tour="employee-photo">
             <Avatar name={name} src={photoSrc} size={84} color={emp.department_color || undefined} />
             {canEdit ? <span className="avatar-overlay">{uploadingPhoto ? <span className="spinner" /> : 'Change'}</span> : null}
             <input ref={photoInput} type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" style={{ display: 'none' }} data-testid="employee-photo-input" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); }} />
@@ -137,7 +171,7 @@ export default function EmployeeDetail() {
             </div>
           </div>
         </div>
-        <div className="emp-facts" data-testid="employee-facts">
+        <div className="emp-facts" data-testid="employee-facts" data-tour="employee-facts">
           <Fact label="Department"><DeptBadge name={emp.department_name} icon={emp.department_icon} color={emp.department_color} /></Fact>
           <Fact label="Work location" icon="mapPin">{emp.work_location_name || <span className="muted">—</span>}</Fact>
           <Fact label="Joined" icon="calendar">{fmtDate(emp.join_date)}{emp.join_date ? <span className="emp-fact-sub">{tenure(emp.join_date)}</span> : null}</Fact>
@@ -180,7 +214,7 @@ function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
   const link = (text: string | null | undefined, href: string) => (text ? <a href={href}>{text}</a> : '—');
   return (
     <div className="detail-grid" data-tour="employee-profile">
-      <Card title="Personal">
+      <Card title="Personal" tour="employee-personal">
         <KeyValue items={[
           { k: 'Full name', v: fullName(emp) },
           { k: 'Date of birth', v: fmtDate(emp.dob) },
@@ -189,7 +223,7 @@ function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
           { k: 'Nationality', v: emp.nationality || '—' },
         ]} />
       </Card>
-      <Card title="Contact">
+      <Card title="Contact" tour="employee-contact">
         <KeyValue items={[
           { k: 'Email', v: link(emp.email, `mailto:${emp.email}`) },
           { k: 'Phone', v: link(emp.phone, `tel:${emp.phone}`) },
@@ -198,7 +232,7 @@ function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
           { k: 'Country', v: emp.country || '—' },
         ]} />
       </Card>
-      <Card title="Job & reporting">
+      <Card title="Job & reporting" tour="employee-job">
         <KeyValue items={[
           { k: 'Department', v: <DeptBadge name={emp.department_name} icon={emp.department_icon} color={emp.department_color} /> },
           { k: 'Position', v: emp.position_title || '—' },
@@ -208,7 +242,7 @@ function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
           ...(emp.candidate_id ? [{ k: 'Recruitment', v: <Link to={`/recruitment?candidate=${emp.candidate_id}`} data-testid="employee-recruitment-link">Hired via recruitment{emp.vacancy_title ? ` · ${emp.vacancy_title}` : ''}</Link> }] : emp.vacancy_title ? [{ k: 'Vacancy', v: emp.vacancy_title }] : []),
         ]} />
       </Card>
-      <Card title="Dates & location">
+      <Card title="Dates & location" tour="employee-dates">
         <KeyValue items={[
           { k: 'Employee code', v: <span className="mono">{emp.employee_code}</span> },
           { k: 'Join date', v: fmtDate(emp.join_date) },
@@ -219,7 +253,7 @@ function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
         ]} />
       </Card>
       {hasBank ? (
-        <Card title="Bank & statutory">
+        <Card title="Bank & statutory" tour="employee-bank">
           <KeyValue items={[
             { k: 'Bank', v: emp.bank_name || '—' },
             { k: 'Account holder', v: emp.bank_account_name || '—' },
@@ -230,14 +264,14 @@ function ProfileTab({ emp, defs }: { emp: Employee; defs: CustomFieldDef[] }) {
           ]} />
         </Card>
       ) : null}
-      <Card title="Emergency contact">
+      <Card title="Emergency contact" tour="employee-emergency">
         <KeyValue items={[
           { k: 'Name', v: emp.emergency_contact_name || '—' },
           { k: 'Phone', v: link(emp.emergency_contact_phone, `tel:${emp.emergency_contact_phone}`) },
         ]} />
       </Card>
       {groups.length ? (
-        <Card title="Custom fields">
+        <Card title="Custom fields" tour="employee-custom">
           {groups.map((g) => (
             <div key={g.section} style={{ marginBottom: 8 }}>
               {groups.length > 1 ? <div className="section-title">{g.section}</div> : null}
@@ -265,7 +299,7 @@ function DocumentsTab({ emp, reload }: { emp: DetailResponse; reload: () => void
         padded={false}
         tour="employee-documents"
         title={<span className="row">Documents {expiringCount ? <Badge tone="warning">{expiringCount} expiring / expired</Badge> : null}</span>}
-        actions={<Button variant="primary" size="sm" onClick={() => setUploading(true)} data-testid="document-upload">Upload document</Button>}>
+        actions={<Button variant="primary" size="sm" onClick={() => setUploading(true)} data-testid="document-upload" data-tour="employee-doc-upload">Upload document</Button>}>
         <div className="table-wrap">
           <table className="table">
             <thead>
@@ -274,16 +308,16 @@ function DocumentsTab({ emp, reload }: { emp: DetailResponse; reload: () => void
             <tbody>
               {docs.length === 0 ? (
                 <tr><td colSpan={8} className="table-empty">No documents uploaded yet.</td></tr>
-              ) : docs.map((d) => (
+              ) : docs.map((d, i) => (
                 <tr key={d.id} className={`row-${d.expiry_state}`} data-testid={`document-row-${d.id}`}>
                   <td><strong>{d.title}</strong>{d.document_number ? <div className="muted mono">{d.document_number}</div> : null}</td>
                   <td>{d.type_name || '—'}</td>
                   <td><FormatBadge format={d.format} /></td>
                   <td>{fmtDate(d.issued_date)}</td>
-                  <td><div>{fmtDate(d.expiry_date)}</div><ExpiryDot state={d.expiry_state} days={d.days_to_expiry} /></td>
+                  <td data-tour={i === 0 ? 'employee-doc-expiry' : undefined}><div>{fmtDate(d.expiry_date)}</div><ExpiryDot state={d.expiry_state} days={d.days_to_expiry} /></td>
                   <td><StatusBadge status={d.status} /></td>
                   <td className="muted">{fmtBytes(d.size_bytes)}</td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} data-tour={i === 0 ? 'employee-doc-actions' : undefined}>
                     <Button size="sm" onClick={() => setPreview(d)} data-testid={`document-preview-${d.id}`}>Preview</Button>{' '}
                     <a className="btn btn-ghost btn-sm" href={documentFileUrl(d.id, true)} download={d.original_name}>Download</a>
                   </td>
@@ -345,7 +379,7 @@ function SalaryTab({ employeeId }: { employeeId: number }) {
   return (
     <>
       <div className="grid grid-2" data-tour="employee-salary">
-        <Card title="Current structure" actions={isHr ? <Button variant="primary" size="sm" onClick={() => setCreating(true)} data-testid="structure-add">New structure</Button> : undefined}>
+        <Card title="Current structure" tour="employee-salary-current" actions={isHr ? <Button variant="primary" size="sm" onClick={() => setCreating(true)} data-testid="structure-add" data-tour="employee-salary-new">New structure</Button> : undefined}>
           {data.loading && !data.data ? <Spinner /> : !cur ? (
             <EmptyState title="No salary structure yet" description={isHr ? 'Create one to enable payroll for this employee.' : 'HR has not set up a salary structure yet.'} action={isHr ? <Button variant="primary" onClick={() => setCreating(true)}>New structure</Button> : undefined} />
           ) : (
@@ -359,11 +393,11 @@ function SalaryTab({ employeeId }: { employeeId: number }) {
             ]} />
           )}
         </Card>
-        <Card title="Monthly breakdown">
+        <Card title="Monthly breakdown" tour="employee-salary-breakdown">
           {preview ? <BreakdownView b={preview} currency={currency} /> : <p className="muted">The breakdown appears once a structure exists.</p>}
         </Card>
       </div>
-      <Card title="History" padded={false}>
+      <Card title="History" padded={false} tour="employee-salary-history">
         <Table<Structure>
           loading={data.loading && !data.data}
           rows={data.data?.history || []}
@@ -505,13 +539,13 @@ function AttendanceTab({ employeeId }: { employeeId: number }) {
   }, [items]);
   return (
     <>
-      <div className="stat-strip">
+      <div className="stat-strip" data-tour="employee-att-stats">
         <Stat label="Days present" value={summary.present} hint="last 30 days" />
         <Stat label="Hours worked" value={fmtMinutes(summary.work)} />
         <Stat label="Late arrivals" value={summary.late} color={summary.late ? '#ea580c' : undefined} />
         <Stat label="Overtime" value={fmtMinutes(summary.overtime)} />
       </div>
-      <Card padded={false} title={`Attendance · ${fmtDate(from)} – ${fmtDate(to)}`} actions={<Link className="btn btn-ghost btn-sm" to={`/attendance?employee=${employeeId}`}>Open attendance</Link>}>
+      <Card padded={false} tour="employee-att-table" title={`Attendance · ${fmtDate(from)} – ${fmtDate(to)}`} actions={<Link className="btn btn-ghost btn-sm" to={`/attendance?employee=${employeeId}`}>Open attendance</Link>}>
         <Table<AttendanceRecord>
           loading={recs.loading && !recs.data}
           rows={items}
@@ -552,7 +586,7 @@ function LeaveTab({ employeeId }: { employeeId: number }) {
           </div>
         ))}
       </div>
-      <Card padded={false} title="Leave requests" actions={<Link className="btn btn-ghost btn-sm" to="/leave">Open leave module</Link>}>
+      <Card padded={false} tour="employee-leave-requests" title="Leave requests" actions={<Link className="btn btn-ghost btn-sm" to="/leave">Open leave module</Link>}>
         <Table<LeaveRequest>
           loading={requests.loading && !requests.data}
           rows={requests.data || []}
@@ -601,7 +635,7 @@ function AssetsTab({ employeeId }: { employeeId: number }) {
           ]}
         />
       </Card>
-      <Card padded={false} title={<span className="row">Returned <Badge tone="neutral">{returned.length}</Badge></span>}>
+      <Card padded={false} tour="employee-assets-returned" title={<span className="row">Returned <Badge tone="neutral">{returned.length}</Badge></span>}>
         <Table<AssetAssignment>
           loading={list.loading && !list.data}
           rows={returned}
@@ -635,14 +669,14 @@ function JourneyTab({ employeeId, candidateId }: { employeeId: number; candidate
     <Card
       tour="employee-journey"
       title={<span className="row">Employee journey {s ? <Badge tone={s.percent === 100 ? 'success' : 'info'}>{s.completed} / {s.total} stages</Badge> : null}{candidateId ? <Link to={`/recruitment?candidate=${candidateId}`} className="badge badge-info" data-testid="journey-hired-via" title="Open the candidate record">Hired via recruitment{vacancyTitle ? `: ${vacancyTitle}` : ''}</Link> : null}</span>}
-      actions={<Link className="btn btn-secondary btn-sm" to={`/journey?employee=${employeeId}`} data-testid="journey-open">{isHr ? 'Edit in Journey' : 'Open Journey'}</Link>}>
+      actions={<Link className="btn btn-secondary btn-sm" to={`/journey?employee=${employeeId}`} data-testid="journey-open" data-tour="employee-journey-open">{isHr ? 'Edit in Journey' : 'Open Journey'}</Link>}>
       {j.loading && !j.data ? <Spinner /> : (
         <>
           <div className="row between mb">
             <span className="muted">{s?.current_stage ? <>Current stage: <strong>{s.current_stage}</strong></> : s?.total ? 'All stages complete' : 'No stages yet'}</span>
             <span className="num"><strong>{s?.percent ?? 0}%</strong></span>
           </div>
-          <div className="progress mb" aria-label="Journey progress"><span style={{ width: `${s?.percent ?? 0}%` }} /></div>
+          <div className="progress mb" aria-label="Journey progress" data-tour="employee-journey-progress"><span style={{ width: `${s?.percent ?? 0}%` }} /></div>
           {stages.length === 0 ? (
             <EmptyState title="No journey stages" description={isHr ? 'Apply the stage templates from the Journey module to build this timeline.' : 'HR has not set up a journey for this employee yet.'} />
           ) : (

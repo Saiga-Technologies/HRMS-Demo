@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useCounts } from '../lib/notifications';
-import { usePageTour } from '../lib/tour';
+import { usePageTour, type TourStep } from '../lib/tour';
 import { fmtDate } from '../lib/format';
 import { Badge, Button, Card, Checkbox, EmptyState, Input, PageHeader, SearchInput, Select, Spinner, Stat, StatusBadge, Table, Tabs, useFetch, useToast } from '../components/ui';
 import { BarChart } from '../components/charts';
@@ -17,14 +17,27 @@ import { BOARD_STAGES, STAGE_COLOR, STAGE_LABEL, candidateName, type Candidate, 
 type Tab = 'pipeline' | 'pool' | 'vacancies';
 interface Position { id: number; title: string; department_id?: number | null; active?: number }
 
-const TOUR = [
-  { element: '[data-tour="recruitment-stats"]', title: 'Hiring at a glance', description: 'How many candidates are in the pool, how many are new or being interviewed, and the average match score.' },
-  { element: '[data-tour="recruitment-add"]', title: 'Upload CVs', description: 'Drop a PDF, DOCX or TXT CV. The text is extracted, parsed (experience, education, skills, contact) and scored against the vacancy’s job description straight away. Bulk upload handles several files in one go.' },
-  { element: '[data-tour="recruitment-tabs"]', title: 'Three views', description: 'Pipeline is a kanban board per stage, CV pool is the sortable table of everyone, Vacancies shows the funnel for each open role. Red badges count new candidates and scheduled interviews.' },
-  { element: '[data-tour="recruitment-filters"]', title: 'Filter the pool', description: 'Narrow to one vacancy, search by name, email or skill, and hide weak matches with a minimum score.' },
-  { element: '[data-tour="recruitment-board"]', title: 'Move candidates along', description: 'Drag a card to another column (or use the arrows) to change the stage. Click a card to open the full profile with the explainable score, parsed CV and timeline.' },
-  { element: '[data-tour="recruitment-pool"]', title: 'CV pool', description: 'Every candidate with score, experience, education and stage. Sort by score to shortlist quickly.' },
-  { element: '[data-tour="recruitment-vacancies"]', title: 'Vacancy funnels', description: 'Openings, hires and the stage funnel for each vacancy. Hiring a candidate from the Interview or Offer stage creates the employee record, completes the recruitment journey stages and closes the vacancy when all openings are filled.' },
+const TOUR: TourStep[] = [
+  { title: 'Recruitment', description: 'From CV to employee. The flow: 1) pick an open vacancy (raised under Jobs), 2) upload CVs — each is parsed and scored against the vacancy’s job description, 3) move candidates through Screening, Interview and Offer, 4) hire, which creates the employee and starts their journey.' },
+  { element: '[data-tour="recruitment-stats"]', title: 'Hiring at a glance', description: 'Candidates in the pool (and how many are not tied to a vacancy), how many are New, Interviewing, at Offer and Hired, and the average match score. Click a tile to jump to the matching view.' },
+  { element: '[data-tour="recruitment-upload"]', title: 'Upload a CV', description: 'Opens the upload form: choose the vacancy and source, then drop a PDF, DOCX or TXT CV. The text is extracted, name, contact, experience, education and skills are parsed, and the match score appears straight away. No file? Switch to manual entry.' },
+  { element: '[data-tour="recruitment-bulk"]', title: 'Bulk upload', description: 'Upload several CVs for one vacancy in a single go. Each file is parsed and scored in turn, with a progress list showing the name and score found for each.' },
+  { element: '[data-tour="recruitment-tabs"]', title: 'Three views', description: 'Pipeline is the stage board, CV pool is the ranked table of everyone, Vacancies shows the funnel for each opening. Red badges count new candidates and interviews waiting.' },
+  { element: '[data-tour="recruitment-vacancy-filter"]', title: 'Work one vacancy', tab: 'pipeline', description: 'Narrow the board and pool to a single vacancy. This is usually the first thing to set when you shortlist.' },
+  { element: '[data-tour="recruitment-search"]', title: 'Search', description: 'Find candidates by name, email or a skill such as “React” or “SQL”.' },
+  { element: '[data-tour="recruitment-min-score"]', title: 'Minimum score', description: 'Hide weak matches: only candidates scoring at least this much (0–100) are shown. Clear resets all filters.' },
+  { element: '[data-tour="recruitment-board"]', title: 'Pipeline board', description: 'One column per stage: New, Screening, Interview, Offer, Hired and Rejected (withdrawn candidates sit in Rejected too). Within a column the highest scores come first.' },
+  { element: '[data-tour="recruitment-card"]', title: 'Candidate card', description: 'Name, current title, the match score ring (green 70+, amber 40–69, red below 40), matched skills, experience, source and vacancy. Click it to open the full profile.' },
+  { element: '[data-tour="recruitment-card-move"]', title: 'Move between stages', description: 'Drag the card to another column, or use these arrows. Every move is recorded on the candidate’s timeline. HR and managers can move candidates.' },
+  { element: '[data-tour="recruitment-card-score"]', title: 'Inside: the score breakdown', description: 'The profile explains the score out of 100: skills match (45), requirements (20), experience fit (20), education (10) and extras (5), with matched and missing skills. You can rescore against another published job description there.' },
+  { element: '[data-tour="recruitment-card"]', title: 'Inside: parsed CV and notes', description: 'The profile also shows the parsed CV (experience, education, skills, contacts) with links to open or download the file, a star rating, and the timeline where you add notes and schedule interviews with interviewer, round and feedback. Scheduling an interview moves a New or Screening candidate to Interview.' },
+  { element: '[data-tour="recruitment-col-hired"]', title: 'Hire', description: 'Hiring is done from the profile, not by dragging: once a candidate is at Interview or Offer, HR uses “Hire → Create employee”. That creates the employee (and optionally a login), copies a PDF CV into their Documents, completes their journey up to Offer and counts the hire on the vacancy — which closes as Filled when all openings are taken.' },
+  { element: '[data-tour="recruitment-pool"]', title: 'Next: CV pool', tab: 'pool', description: 'Everyone in one table, sorted by match score so the best fits are on top. The same vacancy, search and minimum score filters apply. Click a row to open the profile.' },
+  { element: '[data-tour="recruitment-pool-score"]', title: 'Score and stage', description: 'The bar shows the match score against the vacancy’s job description (“Not scored” when no description is linked). Unassigned means the CV is not tied to a vacancy yet.' },
+  { element: '[data-tour="recruitment-vac-toolbar"]', title: 'Next: vacancy funnels', tab: 'vacancies', description: 'One card per open vacancy. Tick the box to include on-hold, filled and closed ones; HR can jump to Jobs to raise or edit vacancies.' },
+  { element: '[data-tour="recruitment-vacancies"]', title: 'Funnel per vacancy', description: 'Openings versus hires with a fill bar, candidate count with average and top score, and a bar per stage. Click the chart or “View candidates” to open that vacancy’s board.' },
+  { element: '[data-tour="recruitment-vac-jd"]', title: 'Job description and rescoring', description: 'The linked job description is what CVs are scored against; without one, candidates cannot be scored. After editing the description, use Rescore all to re-run parsing and scoring for every candidate of the vacancy.' },
+  { title: 'What to do next', description: 'Hired candidates become employees: finish their onboarding in Employee journey, collect documents in Documents and issue an offer or appointment letter from HR letters. Keep job descriptions current under Jobs so scores stay meaningful.' },
 ];
 
 export default function Recruitment() {
@@ -78,8 +91,8 @@ export default function Recruitment() {
         subtitle="CV pool, ATS-style scoring against job descriptions, pipeline and hiring into the employee journey."
         actions={(
           <div className="row" data-tour="recruitment-add">
-            <Button onClick={() => setAdding('bulk')} data-testid="candidate-bulk-add"><Icon name="upload" size={15} /> Bulk upload</Button>
-            <Button variant="primary" onClick={() => setAdding('single')} data-testid="candidate-add"><Icon name="plus" size={15} /> Upload CV / Add candidate</Button>
+            <Button onClick={() => setAdding('bulk')} data-testid="candidate-bulk-add" data-tour="recruitment-bulk"><Icon name="upload" size={15} /> Bulk upload</Button>
+            <Button variant="primary" onClick={() => setAdding('single')} data-testid="candidate-add" data-tour="recruitment-upload"><Icon name="plus" size={15} /> Upload CV / Add candidate</Button>
           </div>
         )}
       />
@@ -101,12 +114,12 @@ export default function Recruitment() {
 
       {tab !== 'vacancies' ? (
         <div className="toolbar" data-tour="recruitment-filters">
-          <Select value={vacancyParam} onChange={(e) => setParam('vacancy', e.target.value || null)} aria-label="Vacancy" data-testid="filter-vacancy">
+          <Select value={vacancyParam} onChange={(e) => setParam('vacancy', e.target.value || null)} aria-label="Vacancy" data-testid="filter-vacancy" data-tour="recruitment-vacancy-filter">
             <option value="">All vacancies</option>
             {vacancyOptions.map((v) => <option key={v.id} value={v.id}>{v.title}{v.status !== 'open' ? ` (${v.status})` : ''}</option>)}
           </Select>
-          <SearchInput value={q} onChange={setQ} placeholder="Search name, email, skill…" />
-          <label className="row" style={{ gap: 6 }}>
+          <SearchInput value={q} onChange={setQ} placeholder="Search name, email, skill…" tour="recruitment-search" />
+          <label className="row" style={{ gap: 6 }} data-tour="recruitment-min-score">
             <span className="help">Min score</span>
             <Input type="number" min={0} max={100} value={minScore} onChange={(e) => setMinScore(e.target.value)} placeholder="0" style={{ width: 80 }} aria-label="Minimum score" data-testid="filter-min-score" />
           </label>
@@ -129,7 +142,7 @@ export default function Recruitment() {
               { key: 'name', header: 'Candidate', render: (c) => <span><strong data-testid="pool-candidate-name">{candidateName(c)}</strong><div className="muted">{c.parsed?.title || c.source || '—'}</div></span> },
               { key: 'email', header: 'Contact', render: (c) => <span>{c.email || '—'}{c.phone ? <div className="muted">{c.phone}</div> : null}</span> },
               { key: 'vacancy_title', header: 'Vacancy', render: (c) => c.vacancy_title ? <span>{c.vacancy_title}<div className="muted">{c.position_title}</div></span> : <Badge tone="neutral">Unassigned</Badge> },
-              { key: 'score', header: 'Score', width: '150px', render: (c) => <ScoreBar score={c.score} /> },
+              { key: 'score', header: 'Score', width: '150px', render: (c) => <span data-tour="recruitment-pool-score"><ScoreBar score={c.score} /></span> },
               { key: 'experience', header: 'Experience', align: 'right', render: (c) => (c.parsed?.experience_years != null ? `${c.parsed.experience_years} yrs` : '—') },
               { key: 'education', header: 'Education', render: (c) => c.parsed?.education?.length ? c.parsed.education.slice(0, 2).join(', ') : '—' },
               { key: 'stage', header: 'Stage', render: (c) => <Badge color={STAGE_COLOR[c.stage]}>{STAGE_LABEL[c.stage]}</Badge> },
@@ -176,6 +189,7 @@ function PipelineBoard({ candidates, loading, onOpen, onMove }: { candidates: Ca
           key={stage}
           className={`kanban-col ${over === stage ? 'over' : ''} ${stage === 'hired' ? 'locked' : ''}`}
           data-testid={`column-${stage}`}
+          data-tour={`recruitment-col-${stage}`}
           onDragOver={(e) => { if (stage === 'hired') return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (over !== stage) setOver(stage); }}
           onDragLeave={() => setOver((o) => (o === stage ? null : o))}
           onDrop={(e) => {
@@ -222,7 +236,7 @@ function VacanciesTab({ vacancies, loading, includeClosed, setIncludeClosed, isH
   if (loading) return <Card><Spinner /></Card>;
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="recruitment-vac-toolbar">
         <Checkbox label="Include on-hold, filled and closed" checked={includeClosed} onChange={(e) => setIncludeClosed(e.target.checked)} />
         {isHr ? <Link className="btn btn-sm" to="/jobs?tab=vacancies">Manage vacancies</Link> : null}
       </div>
@@ -240,7 +254,7 @@ function VacanciesTab({ vacancies, loading, includeClosed, setIncludeClosed, isH
                   </div>
                   <div className="progress" title={`${v.hired_count || 0} of ${v.openings} filled`}><span style={{ width: `${pct}%`, background: STAGE_COLOR.hired }} /></div>
                   <BarChart data={funnel} horizontal onSelect={() => onView(v.id)} />
-                  <div className="row between" style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                  <div className="row between" style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }} data-tour="recruitment-vac-jd">
                     <span className="help">{v.job_description_id ? <Link to="/jobs">JD: {v.jd_title} {v.jd_status !== 'published' ? <Badge tone="warning">{v.jd_status}</Badge> : null}</Link> : <span><Icon name="alert" size={13} /> No job description linked — candidates cannot be scored</span>}</span>
                     <span className="row">
                       {v.job_description_id ? <Button size="sm" loading={busy === v.id} onClick={() => rescoreAll(v)} title="Re-run parsing and scoring for every candidate of this vacancy"><Icon name="sparkles" size={14} /> Rescore all</Button> : null}

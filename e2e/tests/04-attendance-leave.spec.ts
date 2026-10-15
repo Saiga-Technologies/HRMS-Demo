@@ -5,7 +5,7 @@ test.describe('attendance', () => {
   test('employee punches in inside the geofence, takes a timed break, punches out; outside geofence is rejected', async ({ page, context }) => {
     await login(page, USERS.employee);
     await page.goto('/attendance');
-    await runTour(page);
+    await runTour(page, { minSteps: 20 });
     await expect(page.getByText(/Inside .*geofence/i)).toBeVisible();
     await page.getByTestId('punch-in').click();
     await expectToast(page, 'success');
@@ -71,7 +71,7 @@ test.describe('leave', () => {
   test('employee applies, manager approves, balance updates, employee corrects and cancels', async ({ page }) => {
     await login(page, USERS.employee);
     await page.goto('/leave');
-    await runTour(page);
+    await runTour(page, { minSteps: 12 });
     await page.getByTestId('leave-apply').click();
     const m = page.getByRole('dialog');
     await m.getByLabel(/Leave type/).selectOption({ label: 'Casual Leave (CL)' });

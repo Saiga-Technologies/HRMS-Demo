@@ -9,6 +9,7 @@ import { wrap, badRequest, notFound, pick, audit, toInt, toNum, nowIso, today, a
 import { extractText, parseCv, scoreCv, type CvFormat, type ParsedCv } from '../cvparser.js';
 import { createEmployeeRecord, nextEmployeeCode, empQuery, EMP_COLS } from './employees.js';
 import { DEFAULT_COMPANY } from './settings.js';
+import { emitEvent } from './integrations.js';
 
 /**
  * Recruitment: CV pool → parsing → ATS-style scoring → pipeline → hire (creates the employee and
@@ -172,16 +173,32 @@ r.get('/candidates', requireRecruiter, (req, res) => {
 /** Create a candidate: multipart (field `cv`) or plain JSON (manual entry, optional `cv_text`). */
 r.post('/candidates', requireRecruiter, (req, res, next) => {
   if (!req.is('multipart/form-data')) return createCandidate(req, res, next);
+  receiveCv(req, res, () => createCandidate(req, res, next));
+});
+/** Runs the CV upload middleware and answers upload errors (size, type) with a JSON 4xx. */
+export function receiveCv(req: Request, res: Response, next: () => void) {
   upload.single('cv')(req, res, (err: any) => {
     if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : err.status || 400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'CV exceeds the 10 MB limit' : err.message });
-    createCandidate(req, res, next);
+    next();
   });
-});
+}
 async function createCandidate(req: Request, res: Response, next: NextFunction) {
-  const file = req.file;
+  try {
+    const id = await insertCandidate(req.body || {}, req.file, req.user!.id);
+    audit(req, 'create', 'candidate', id, { vacancy_id: loadCandidate(id).vacancy_id ?? null, has_cv: !!req.file });
+    res.status(201).json({ ...loadCandidate(id), events: events(id) });
+  } catch (e) {
+    next(e);
+  }
+}
+/**
+ * Validates, parses and scores a candidate and stores it in the "new" column. Shared by the
+ * recruiter form, the public careers page and the API-key endpoint (`actorId` null for those).
+ * Removes the uploaded file when anything fails.
+ */
+export async function insertCandidate(body: any, file: Express.Multer.File | undefined, actorId: number | null, introNote?: string): Promise<number> {
   const cleanup = () => { if (file) fs.rm(file.path, { force: true }, () => {}); };
   try {
-    const body: any = req.body || {};
     let cvText: string = typeof body.cv_text === 'string' ? body.cv_text : '';
     let fmt: CvFormat | null = null;
     if (file) {
@@ -210,22 +227,24 @@ async function createCandidate(req: Request, res: Response, next: NextFunction) 
     if (!data.email && parsedEarly.emails[0]) data.email = parsedEarly.emails[0];
     if (!data.phone && parsedEarly.phones[0]) data.phone = parsedEarly.phones[0];
     data.last_name = data.last_name || '';
+    const intro = introNote ? introNote : file ? `CV uploaded (${file.originalname})` : 'Candidate added manually';
     const id = transaction(() => {
       const cid = insert('candidates', {
         ...data, cv_original_name: file ? file.originalname.slice(0, 255) : null, cv_stored_name: file ? file.filename : null, cv_mime: file ? file.mimetype : null,
-        cv_text: cvText || null, parsed: '{}', score: null, score_breakdown: '{}', stage: 'new', created_by: req.user!.id, created_at: nowIso(), updated_at: nowIso(),
+        cv_text: cvText || null, parsed: '{}', score: null, score_breakdown: '{}', stage: 'new', created_by: actorId, created_at: nowIso(), updated_at: nowIso(),
       });
       const a = analyse({ ...data, cv_text: cvText });
       update('candidates', cid, { parsed: a.parsed, score: a.score, score_breakdown: a.breakdown });
-      addEvent(cid, 'note', file ? `CV uploaded (${file.originalname})` : 'Candidate added manually', null, req.user!.id);
-      if (a.score !== null) addEvent(cid, 'score', `Scored ${a.score} against ${a.jd.title}`, { score: a.score, jd_id: a.jd.id }, req.user!.id);
+      addEvent(cid, 'note', intro, null, actorId);
+      if (a.score !== null) addEvent(cid, 'score', `Scored ${a.score} against ${a.jd.title}`, { score: a.score, jd_id: a.jd.id }, actorId);
       return cid;
     });
-    audit(req, 'create', 'candidate', id, { vacancy_id: data.vacancy_id ?? null, has_cv: !!file });
-    res.status(201).json({ ...loadCandidate(id), events: events(id) });
+    const c = loadCandidate(id);
+    emitEvent('candidate.created', { id, first_name: c.first_name, last_name: c.last_name, email: c.email, source: c.source, vacancy_id: c.vacancy_id, vacancy_title: c.vacancy_title, score: c.score, stage: c.stage });
+    return id;
   } catch (e) {
     cleanup();
-    next(e);
+    throw e;
   }
 }
 
@@ -276,6 +295,7 @@ r.put('/candidates/:id', requireRecruiter, wrap(async (req, res) => {
     }
   });
   audit(req, 'update', 'candidate', id, Object.keys(data));
+  if (stageChanged) emitEvent('candidate.stage_changed', { id, first_name: existing.first_name, last_name: existing.last_name, email: existing.email, vacancy_id: existing.vacancy_id, from: existing.stage, to: data.stage });
   res.json({ ...loadCandidate(id), events: events(id) });
 }));
 
@@ -446,6 +466,7 @@ r.post('/candidates/:id/hire', requireHr, wrap(async (req, res) => {
     return { created, completed, next: next?.name ?? null, document_id, vacancy: vacancyOut };
   });
   audit(req, 'hire', 'candidate', id, { employee_id: result.created.id, employee_code: result.created.employee_code });
+  emitEvent('employee.hired', { candidate_id: id, employee_id: result.created.id, employee_code: result.created.employee_code, first_name: cand.first_name, last_name: cand.last_name, email: cand.email, vacancy_id: cand.vacancy_id ?? null });
   const emp: any = parseJson(get<any>(`${empQuery} WHERE e.id = ?`, [result.created.id]), ['custom_fields']);
   res.status(201).json({
     ...emp, temporary_password: result.created.temporary_password, candidate: loadCandidate(id), vacancy: result.vacancy,

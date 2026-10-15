@@ -1,0 +1,72 @@
+/* Agency billing page. Theme variables only (light + dark). */
+.billing-page .tabs { margin-bottom: 16px; }
+
+.bill-company { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.bill-company-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.bill-dates { display: inline-flex; flex-direction: column; line-height: 1.25; }
+.bill-dates small { font-size: 12px; }
+.bill-danger { color: var(--danger-ink, var(--danger)); font-weight: 600; }
+.bill-void { text-decoration: line-through; }
+.bill-note { font-size: 12.5px; margin: 8px 0 0; }
+.bill-sac { font-size: 11.5px; }
+
+.bill-callout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 14px; border-radius: var(--radius); border: 1px solid var(--info-border); background: var(--info-bg); color: var(--info-ink); font-size: 13.5px; }
+.bill-callout > span { flex: 1; min-width: 180px; }
+.bill-callout.danger { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-ink); }
+.bill-drawer-body .bill-callout { margin: 12px 0; }
+
+.bill-overview { display: flex; flex-direction: column; gap: 16px; }
+.bill-currencies { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.bill-currency { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--info); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bill-currency.has-overdue { border-top-color: var(--danger); }
+.bill-currency-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.bill-currency-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border: 0; background: none; padding: 0; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+.bill-currency-main small { color: var(--muted); font-size: 12px; }
+.bill-currency-main strong { font-size: 22px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.bill-currency-rows { display: flex; flex-direction: column; border-top: 1px solid var(--border); padding-top: 6px; }
+.bill-currency-rows > * { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; text-align: left; width: 100%; }
+.bill-currency-rows button { cursor: pointer; }
+.bill-currency-rows button:hover span:first-child { text-decoration: underline; }
+.bill-currency-rows span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.bill-currency-code { font-weight: 800; letter-spacing: 0.06em; font-size: 13px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 8px; }
+.bill-two { display: grid; gap: 16px; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.bill-overdue-list { list-style: none; margin: 0; padding: 0; }
+.bill-overdue-list li + li { border-top: 1px solid var(--border); }
+.bill-overdue-list button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 16px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.bill-overdue-list button:hover { background: var(--surface-2); }
+.bill-overdue-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
+.bill-overdue-meta strong { color: var(--danger-ink, var(--danger)); }
+.bill-overdue-meta small { color: var(--muted); font-size: 12px; }
+
+/* Drawer */
+.bill-drawer-backdrop { position: fixed; inset: 0; background: color-mix(in srgb, var(--text) 30%, transparent); z-index: 60; }
+.bill-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--surface); color: var(--text); border-left: 1px solid var(--border); box-shadow: var(--shadow); z-index: 61; display: flex; flex-direction: column; animation: bill-slide 0.18s ease-out; }
+@keyframes bill-slide { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.bill-drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 18px 10px; border-bottom: 1px solid var(--border); }
+.bill-drawer-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 16px; font-weight: 700; }
+.bill-drawer-title .mono { font-size: 15px; }
+.bill-drawer-sub { margin-top: 6px; font-size: 13px; }
+.bill-drawer-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.bill-drawer-body { padding: 14px 18px 28px; overflow-y: auto; flex: 1; }
+.bill-drawer-body .section-title { margin-top: 18px; }
+.bill-lines td { vertical-align: top; }
+.bill-addline { display: grid; grid-template-columns: minmax(0, 1fr) 70px 110px auto; gap: 6px; margin-top: 8px; align-items: center; }
+.bill-totals { margin: 14px 0 0 auto; max-width: 320px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+.bill-totals > div { display: flex; justify-content: space-between; gap: 12px; }
+.bill-totals .bill-total { font-weight: 700; font-size: 14.5px; border-top: 1px solid var(--border); padding-top: 6px; margin-top: 2px; }
+.bill-payments { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); }
+.bill-payments li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; font-size: 13px; }
+.bill-payments li + li { border-top: 1px solid var(--border); }
+.bill-payments li > span:first-child { display: flex; flex-direction: column; }
+.bill-payments small { font-size: 12px; }
+
+@media (max-width: 1000px) {
+  .bill-two { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .bill-addline { grid-template-columns: minmax(0, 1fr) 70px; }
+  .bill-drawer-head, .bill-drawer-actions, .bill-drawer-body { padding-left: 14px; padding-right: 14px; }
+  .billing-page .toolbar .input { min-width: 0; width: 100%; flex: 1 1 140px; }
+}
+.bill-overdue-list .bill-company { flex: 1 1 auto; }
+.bill-overdue-meta { flex: 0 1 auto; text-align: right; }

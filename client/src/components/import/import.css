@@ -1,0 +1,39 @@
+/* Bulk employee import wizard (ImportEmployeesModal). Theme colours come from CSS variables only. */
+.imp-steps { display: flex; gap: 6px; list-style: none; margin: 0 0 16px; padding: 0; flex-wrap: wrap; }
+.imp-steps li { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+.imp-steps li span { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; background: var(--surface-3); color: var(--text-2); }
+.imp-steps li.active { color: var(--text); border-color: var(--brand); }
+.imp-steps li.active span { background: var(--brand); color: var(--surface); }
+.imp-steps li.done span { background: var(--success-bg); color: var(--success-ink); }
+.imp-stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.imp-stack p { margin: 4px 0 0; }
+.imp-template { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.imp-template > div { flex: 1 1 260px; min-width: 0; }
+.imp-help { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+.imp-help summary { cursor: pointer; font-weight: 600; }
+.imp-formats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
+.imp-formats > div { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.imp-formats code, .imp-cols code, .imp-issues code { background: var(--surface-3); color: var(--text); padding: 0 4px; border-radius: 4px; font-size: 12px; overflow-wrap: anywhere; }
+.imp-cols { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
+.imp-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.imp-chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); font-size: 13px; }
+.imp-chip b { font-size: 15px; color: inherit; }
+.imp-chip.ok { background: var(--success-bg); color: var(--success-ink); border-color: var(--success-border); }
+.imp-chip.err { background: var(--danger-bg); color: var(--danger-ink); border-color: var(--danger-border); }
+.imp-chip.warn { background: var(--warning-bg); color: var(--warning-ink); border-color: var(--warning-border); }
+.imp-chip.info { background: var(--info-bg); color: var(--info-ink); border-color: var(--info-border); }
+.imp-toggles { display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: center; }
+.imp-table { max-height: 46vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; min-width: 0; }
+.imp-table .table-wrap { border: 0; }
+.imp-email { overflow-wrap: anywhere; }
+.imp-issues { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.imp-issues li { padding: 2px 6px; border-radius: 6px; border-left: 3px solid; }
+.imp-issues li.err { background: var(--danger-bg); color: var(--danger-ink); border-color: var(--danger); }
+.imp-issues li.warn { background: var(--warning-bg); color: var(--warning-ink); border-color: var(--warning); }
+.imp-done { display: flex; gap: 12px; align-items: center; }
+.imp-done-icon { width: 40px; height: 40px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--success-bg); color: var(--success-ink); }
+@media (max-width: 600px) {
+  .imp-template .btn { width: 100%; justify-content: center; }
+  .imp-table { max-height: 52vh; }
+  .imp-issues li { font-size: 12px; }
+}
