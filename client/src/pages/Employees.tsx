@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, qs, apiUrl } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePageTour, type TourStep } from '../lib/tour';
@@ -10,9 +10,10 @@ import { Icon } from '../components/Icons';
 import { DeptBadge } from '../components/DeptBadge';
 import { CandidatePicker, HireModal } from '../components/recruitment/HireModal';
 import type { Candidate } from '../components/recruitment/types';
+import { ImportEmployeesModal } from '../components/import/ImportEmployeesModal';
 
 const TOUR: TourStep[] = [
-  { title: 'The staff directory', description: 'Everyone in the company, one row per employee. The flow on this page: 1) check headcount by status, 2) search and filter, 3) read the list, 4) add a new employee (by hand or from a recruitment candidate), 5) open a profile to complete it.' },
+  { title: 'The staff directory', description: 'Everyone in the company, one row per employee. The flow on this page: 1) check headcount by status, 2) search and filter, 3) read the list, 4) add a new employee (by hand, from a recruitment candidate, or many at once from a spreadsheet), 5) open a profile to complete it.' },
   { element: '[data-tour="employees-stats"]', title: 'Headcount at a glance', description: 'Total staff and a count per status (onboarding, probation, active, notice). Click a tile to filter the list to that status; click it again, or Total, to clear. The counts follow the filters below.' },
   { element: '[data-tour="employees-search"]', title: 'Search', description: 'Type part of a name, employee code, email or job title. The list updates as you type.' },
   { element: '[data-tour="employees-filter-org"]', title: 'Department and position', description: 'Narrow the list to one department, then to a position inside it (the position list only offers titles from the chosen department). Departments and positions are set up under Org structure.' },
@@ -26,6 +27,12 @@ const TOUR: TourStep[] = [
   { element: '[data-tour="employees-add-btn"]', title: 'Employee ID and login', description: 'At the bottom of the form the employee ID is filled in automatically from the company prefix (regenerate or edit it by hand). Tick "Create a login" to give them access as an employee or manager; the user ID is their email.' },
   { element: '[data-tour="employees-add-btn"]', title: 'What happens on save', description: 'You land on the new profile. If a login was created, the temporary password is shown once at the top for you to copy and share; they must change it at first sign-in. Journey stages and this year\'s leave balances are created automatically.' },
   { element: '[data-tour="employees-from-recruitment"]', title: 'Add from recruitment', description: 'Lists candidates in the Interview or Offer stage. Pick one and the same employee form opens prefilled from their CV; saving marks the candidate as hired and links the new profile back to the vacancy.' },
+  { element: '[data-tour="employees-import-btn"]', title: 'Import many from a spreadsheet', description: 'Onboarding a whole team or a new client company? Import opens a three-step wizard: download the template, upload the filled file and check every row, then import. Nothing is saved until you confirm.' },
+  { element: '[data-tour="employees-import-btn"]', title: '1. Download the template', description: 'The CSV template has the columns and two example rows for this company\'s country: PAN, IFSC and UAN in India; IBAN, SWIFT and Emirates ID / Iqama / QID in the GCC; masked SSN and ABA routing number in the US. The column guide in the wizard explains each format. Only first name, email and join date are required.' },
+  { element: '[data-tour="employees-import-btn"]', title: '2. Upload and check', description: 'Upload the filled CSV (or Excel .xlsx). Every row is validated without saving anything: required fields, email and employee code duplicates (in the file and against existing staff), dates, managers (an existing employee or another row of the file, no loops), departments and positions, and the country formats and checksums.' },
+  { element: '[data-tour="employees-import-btn"]', title: '3. Fix errors', description: 'Summary chips count valid rows, errors, warnings and departments/positions to be created. Errors are red, warnings amber, per field; tick "Only problems" to focus. Fix the file and upload again, or turn on "Skip rows with errors" to import only the valid rows. "Create missing departments/positions" adds the ones the file names.' },
+  { element: '[data-tour="employees-import-btn"]', title: '4. Import', description: 'Everything is created in one go (all or nothing unless you skip errors): employee codes from the company prefix, managers before their reports, journey stages, leave balances, an opening salary structure from basic_monthly in the company currency, and logins when "Create logins" is on.' },
+  { element: '[data-tour="employees-import-btn"]', title: '5. Share temporary passwords', description: 'The result lists each new employee code with its temporary password, shown only once. Use "Copy all" and share each password securely; people must change it at first sign-in. The new staff then appear in this list.' },
   { element: '[data-tour="employees-row-name"]', title: 'Open a profile', description: 'Click any row to open the full profile: header facts, personal and job details, documents, salary, attendance, leave, assets and the onboarding journey.' },
   { title: 'Next steps', description: 'After adding someone, open their profile to upload documents and set a salary structure so they are included in Payroll. Their attendance, leave and assets then build up on the same profile. Use Org tree to see where they sit in the reporting line.' },
 ];
@@ -47,6 +54,12 @@ export default function Employees() {
   const [adding, setAdding] = useState(false);
   const [picking, setPicking] = useState(false);
   const [hireCandidate, setHireCandidate] = useState<Candidate | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [importing, setImporting] = useState(() => searchParams.get('import') === '1');
+  const closeImport = () => {
+    setImporting(false);
+    if (searchParams.has('import')) { const next = new URLSearchParams(searchParams); next.delete('import'); setSearchParams(next, { replace: true }); }
+  };
 
   useEffect(() => {
     const t = setTimeout(() => setDq(q.trim()), 250);
@@ -84,6 +97,7 @@ export default function Employees() {
               <Button variant="primary" onClick={() => setAdding(true)} data-testid="employee-add" data-tour="employees-add-btn">+ Add employee</Button>
               <Button variant="primary" onClick={() => setPicking(true)} data-testid="employee-from-recruitment" data-tour="employees-from-recruitment" title="Create the employee from a recruitment candidate (Interview / Offer stage)"><Icon name="userPlus" size={15} /> From recruitment</Button>
             </span>
+            <Button onClick={() => setImporting(true)} data-testid="employee-import" data-tour="employees-import-btn" title="Import many employees from a CSV or Excel file"><Icon name="upload" size={15} /> Import</Button>
           </div>
         ) : undefined}
       />
@@ -164,6 +178,7 @@ export default function Employees() {
         />
       ) : null}
       {picking ? <CandidatePicker onClose={() => setPicking(false)} onPick={(c) => { setPicking(false); setHireCandidate(c); }} /> : null}
+      {importing && isHr ? <ImportEmployeesModal onClose={closeImport} onImported={() => list.reload()} /> : null}
       {hireCandidate ? <HireModal candidate={hireCandidate} onClose={() => setHireCandidate(null)} /> : null}
     </>
   );

@@ -327,6 +327,7 @@ function Success({ created, name, onBack }: { created: Created; name: string; on
         </div>
         <div className="row" style={{ justifyContent: 'center', marginTop: 18 }}>
           <Button onClick={onBack} data-testid="nc-back-portfolio"><Icon name="grid" size={15} /> Back to portfolio</Button>
+          <Button onClick={() => openCompany(created.slug, '/employees?import=1')} data-testid="nc-import-employees" title="Open the company and import its staff from a spreadsheet"><Icon name="upload" size={15} /> Import employees</Button>
           <Button variant="primary" onClick={() => openCompany(created.slug)} data-testid="nc-open-company">Open company <Icon name="chevronRight" size={15} /></Button>
         </div>
       </Card>

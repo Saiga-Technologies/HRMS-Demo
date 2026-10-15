@@ -863,3 +863,21 @@ input[type='date'].input::-webkit-calendar-picker-indicator:hover, input[type='d
   .careers-apply { position: static; }
   .careers-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Payroll output files ---------- */
+.chip-warning { background: var(--warning-bg); color: var(--warning-ink); border-color: var(--warning-border); cursor: pointer; font: inherit; font-size: 12.5px; }
+.output-files { list-style: none; margin: 0; padding: 0; }
+.output-file { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px dashed var(--border); }
+.output-file:first-child { padding-top: 0; }
+.output-file:last-child { border-bottom: 0; padding-bottom: 0; }
+.output-file-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.output-file-desc { color: var(--text-2); font-size: 13px; }
+.output-file-portal { color: var(--muted); font-size: 12.5px; display: inline-flex; gap: 6px; align-items: center; }
+.output-file-excluded { margin-top: 6px; }
+.output-file-excluded .list li { border-bottom-color: var(--warning-border); }
+.output-file-actions { flex-shrink: 0; display: flex; align-items: center; }
+.output-file-wait { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12.5px; text-align: right; max-width: 220px; }
+@media (max-width: 640px) {
+  .output-file { flex-direction: column; }
+  .output-file-wait { align-items: flex-start; text-align: left; }
+}

@@ -8,6 +8,7 @@ import { useCounts } from '../lib/notifications';
 import { Icon } from '../components/Icons';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, Stat, StatusBadge, Switch, Table, Tabs, Textarea, useConfirm, useFetch, useForm, useToast } from '../components/ui';
 import Payslip, { fmtPeriod, type PayLine, type PayslipData } from '../components/Payslip';
+import OutputFiles, { FileSettingsCard } from '../components/payroll/OutputFiles';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -54,6 +55,10 @@ const HR_TOUR: TourStep[] = [
   { tab: OPEN_FIRST_RUN, element: '[data-tour="payroll-run-head"]', title: 'Inside a run', description: 'The month, its status and the number of working days used for proration. Use All runs to go back to the list.' },
   { tab: 'runs', element: '[data-tour="payroll-run-actions"]', title: 'Move the run forward', description: 'Draft: Process generates a payslip for everyone with a salary structure, using attendance and leave for loss-of-pay. Processed: review, then Approve to release payslips to employees (or Back to draft). In agency-managed companies the client’s HR approves instead. Approved: Mark paid locks the run. Delete is available until it is paid.' },
   { element: '[data-tour="payroll-run-totals"]', title: 'Run totals', description: 'Headcount (and how many were skipped), gross, deductions and net payable, with the date the run was processed, approved or paid.' },
+  { element: '[data-tour="payroll-run-files"]', title: 'Output files', description: 'Once a run is processed, everything the agency uploads or files for the month is generated from its payslips: the payroll register for the client’s sign-off, the salary payment file for the bank, and the statutory returns. The list depends on the company’s country. Every download is written to the audit log.' },
+  { element: '[data-tour="payroll-run-file-first"]', title: 'What each file is for', description: 'Each row says what the file is, its format and the portal it goes to. India: bank NEFT / RTGS CSV (corporate net-banking), PF ECR text (EPFO Unified Portal) and ESI contribution sheet (ESIC portal). UAE: WPS SIF (paying bank / exchange house, MOHRE). KSA: Mudad salary upload. Qatar: WPS SIF (paying bank, Ministry of Labour). US: NACHA ACH file (company bank). The register (Excel) goes to the client and finance.' },
+  { element: '[data-tour="payroll-run-files"]', title: 'Who is left out', description: 'A warning chip shows how many people a file leaves out and why (no bank account, IBAN, UAN, routing number…). Click it to see the names, fix the employee records and download again: files are rebuilt on every download, and totals always equal the sum of the lines.' },
+  { element: '[data-tour="payroll-run-file-bank"]', title: 'Bank files wait for approval', description: 'Salary is never paid from an unapproved register, so bank, WPS and ACH files unlock only when the client approves the run. Until then you can download a preview (named PREVIEW_…) to check it; the register and statutory files are available as soon as the run is processed.' },
   { element: '[data-tour="payroll-run-skipped"]', title: 'Skipped employees', description: 'Shown right after processing: who was left out and why, usually a missing salary structure. Fix it and process again.' },
   { element: '[data-tour="payroll-run-payslips"]', title: 'Review payslips', description: 'One payslip per employee with paid and LOP days, gross, deductions and net. View opens the full payslip; while the run is draft or processed, Edit lets you override lines for that person. Payslips lock once the run is approved.' },
   { tab: 'requests', element: '[data-tour="payroll-requests"]', title: 'Payslip requests', description: 'Employees can ask for a payslip for any month. Fulfil attaches their payslip from that month’s approved or paid run; Reject sends them a note. The Pay run column shows whether the month is ready.' },
@@ -61,7 +66,8 @@ const HR_TOUR: TourStep[] = [
   { element: '[data-tour="payroll-settings-statutory"]', title: 'Statutory deductions', description: 'PF, ESI and professional tax rates, ceilings and thresholds. These drive the PF, ESI and PT components on every payslip.' },
   { element: '[data-tour="payroll-settings-tds"]', title: 'TDS slabs', description: 'Annual income tax slabs. Monthly TDS is the annual tax divided by 12; leave the last limit empty for “and above”.' },
   { element: '[data-tour="payroll-settings-save"]', title: 'Save settings', description: 'Changes apply to runs processed from now on. To apply them to a processed run, move it back to draft and process it again.' },
-  { title: 'What to do next', description: 'Each month: add adjustments, create the run, process, review, approve and mark paid. Make sure attendance appeals and leave approvals are settled first, because they decide loss-of-pay days. Employees see their payslips under Payroll once the run is approved.' },
+  { element: '[data-tour="payroll-file-settings"]', title: 'File settings', description: 'The employer ids and bank codes printed in the output files for this company’s country: PF establishment and ESI employer codes (India), MOL establishment id and routing code (UAE), Mudad establishment id (KSA), employer EID and payer bank (Qatar), ODFI routing, immediate origin and company id (US ACH). Fields marked “demo placeholder” must be replaced before a file is uploaded for real.' },
+  { title: 'What to do next', description: 'Each month: add adjustments, create the run, process, review, approve, download the output files (bank / WPS / ACH and statutory) and mark paid. Make sure attendance appeals and leave approvals are settled first, because they decide loss-of-pay days. Employees see their payslips under Payroll once the run is approved.' },
 ];
 const MY_TOUR: TourStep[] = [
   { title: 'Your payslips', description: 'Here you find your payslips and can ask HR for one. You will go through: 1) your released payslips, 2) opening and downloading one, and 3) requesting a payslip for a past month.' },
@@ -325,7 +331,12 @@ function HrPayroll() {
       {tab === 'requests' ? <HrPayslipRequests currency={currency} onOpenPayslip={(id) => setViewSlip(id)} /> : null}
       {tab === 'components' ? <ComponentsTab settings={settings.data} /> : null}
       {tab === 'adjustments' ? <AdjustmentsTab currency={currency} /> : null}
-      {tab === 'settings' ? <SettingsTab settings={settings.data} loading={settings.loading} onSaved={(s) => settings.setData(s)} /> : null}
+      {tab === 'settings' ? (
+        <>
+          <SettingsTab settings={settings.data} loading={settings.loading} onSaved={(s) => settings.setData(s)} />
+          <FileSettingsCard />
+        </>
+      ) : null}
       {newRun ? <NewRunModal onClose={() => setNewRun(false)} onCreated={(r) => { setNewRun(false); openRun(r.id); }} /> : null}
       {viewSlip ? <PayslipModal id={viewSlip} currency={currency} onClose={() => setViewSlip(null)} /> : null}
     </>
@@ -504,6 +515,8 @@ function RunDetail({ id, currency, onBack }: { id: number; currency: string; onB
           </ul>
         </Card>
       ) : null}
+
+      {r.status !== 'draft' ? <OutputFiles runId={r.id} status={r.status} /> : null}
 
       <Card title={`Payslips (${r.payslips.length})`} padded={false} tour="payroll-run-payslips" actions={<input className="input search" type="search" placeholder="Filter employees…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter payslips" />}>
         <Table<RunPayslip>
